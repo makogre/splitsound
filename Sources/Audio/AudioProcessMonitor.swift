@@ -89,12 +89,13 @@ final class AudioProcessMonitor {
         processObservations = processObservations.filter { liveIDs.contains($0.key) }
         lastActiveByProcess = lastActiveByProcess.filter { liveIDs.contains($0.key) }
 
+        let playing = discovered.filter(\.isPlayingAudio).count
+        publish(discovered, now: now)
         // Logged on purpose, and relied upon by scripts/build-release.sh:
         // "0 usable" out of a non-empty object list is the signature of the
         // optimiser bug described in docs/TECHNICAL.md, which no unit test
-        // reproduces.
-        log.info("refresh: \(objectIDs.count) audio object(s), \(discovered.count) usable")
-        publish(discovered, now: now)
+        // reproduces. The other counts make an empty mixer diagnosable.
+        log.info("refresh: \(objectIDs.count) audio object(s), \(discovered.count) usable, \(playing) playing, \(self.processes.count) shown")
     }
 
     /// Filters down to audible (or recently audible) apps and sorts them stably.

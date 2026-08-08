@@ -79,7 +79,7 @@ Build a DMG:
 Run the tests:
 
 ```sh
-xcodebuild test -project SplitSound.xcodeproj -scheme SplitSound -destination 'platform=macOS'
+./scripts/test.sh
 ```
 
 How it works internally, which Core Audio pitfalls are waiting for you, and

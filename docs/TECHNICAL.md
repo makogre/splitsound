@@ -66,7 +66,7 @@ a free Apple ID account is enough.
 
 ## Pitfalls
 
-Nine things that are not in the documentation and will save you time. All of
+Ten things that are not in the documentation and will save you time. All of
 them caused real debugging sessions during development.
 
 **Feeding Core Audio an uninitialized *typed* buffer is undefined behaviour,
@@ -93,6 +93,13 @@ validation otherwise refuses to load the test bundle. What does catch it is the
 smoke check in `scripts/build-release.sh`: it launches the built app and fails
 the build if the app reports audio objects but zero usable ones. That guard was
 verified both ways — green with the fix, red with the bug restored.
+
+**`xcodebuild test` leaves a second app in your menu bar.** SplitSound is its
+own test host, and a menu bar app has no window to close, so the test build
+keeps running after the suite finishes — a *different* build from the one in
+Applications, sitting in the same menu bar. Debugging the wrong instance costs
+an embarrassing amount of time. `scripts/test.sh` runs the suite and kills only
+that process, matched by its path so the installed copy survives.
 
 **A missing recording permission looks exactly like a broken tap.** Without TCC
 approval, Core Audio delivers *silence instead of an error*:
