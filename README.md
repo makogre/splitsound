@@ -1,131 +1,91 @@
+<div align="center">
+
 # SplitSound
 
-Ein Lautstärkemixer für die macOS-Menüleiste — wie der Lautstärkemixer unter
-Windows. Regelt den Ton einzelner Apps (Safari, FaceTime, Spotify …) getrennt
-voneinander.
+**Ein Lautstärkemixer für die macOS-Menüleiste.**
 
-## Wie es funktioniert
+Regle den Ton jeder App einzeln — Video leiser, Musik lauter, Meeting stumm.
+Das, was der Lautstärkemixer unter Windows kann und macOS bis heute nicht mitbringt.
 
-macOS hat keinen Mixer und keine API, mit der man die Lautstärke einer fremden
-App direkt setzen könnte. Der Trick besteht darin, den Ton abzufangen und
-selbst neu auszugeben:
+<!-- Screenshot des geöffneten Mixers in der Menüleiste -->
+<img src="docs/images/mixer.png" alt="SplitSound-Mixer in der Menüleiste" width="360">
 
-1. **Process Tap** auf den Prozess legen (`CATapDescription`, seit macOS 14.4),
-   mit `muteBehavior = .mutedWhenTapped`. Damit ist der direkte Weg der App zum
-   Lautsprecher stumm, ihre Samples kommen stattdessen bei uns an.
-2. **Privates Aggregate Device** aus dem echten Ausgabegerät plus diesem Tap.
-3. **IOProc**: liest den Tap-Eingang, multipliziert mit dem eingestellten Gain,
-   schreibt das Ergebnis aufs Ausgabegerät.
+</div>
 
-Netto hört der Nutzer nur noch unsere skalierte Kopie — also genau die
-Lautstärke, die der Slider vorgibt.
+---
 
-Getappt wird nur, was auch geregelt werden soll. Eine App auf 100 % ohne Mute
-läuft unangetastet über den schnellsten Weg; ein Tap würde dort nur Latenz und
-CPU kosten.
+## Was es kann
 
-### Aufbau
+- **Lautstärke pro App** — jede tonausgebende App bekommt einen eigenen Regler
+- **Einzeln stummschalten**, ohne die App zu berühren
+- **Einstellungen bleiben gespeichert** — Safari bleibt leise, auch nach dem Neustart
+- **Zeigt nur, was gerade läuft** — keine endlose Liste, sondern die Apps, die
+  tatsächlich Ton machen
+- **Bleibt aus dem Weg** — lebt in der Menüleiste, kein Fenster, kein Dock-Symbol
 
-| Datei | Aufgabe |
+## Installation
+
+1. Neueste Version unter [Releases](https://github.com/makogre/splitsound/releases) herunterladen
+2. DMG öffnen, **SplitSound** in den Ordner **Programme** ziehen
+3. Beim ersten Start: **Rechtsklick auf die App → „Öffnen"**, im Dialog nochmals „Öffnen"
+
+> Der Rechtsklick ist nötig, weil die App noch nicht bei Apple notariell
+> registriert ist. macOS blockiert sie sonst. Danach startet sie normal.
+
+Beim ersten Regeln fragt macOS einmalig nach der Erlaubnis, Audio mitzuschneiden.
+Die braucht SplitSound, um den Ton einer App abzufangen und leiser wieder
+auszugeben — anders lässt sich die Lautstärke fremder Apps unter macOS nicht
+verändern.
+
+**Voraussetzung:** macOS 14.4 oder neuer.
+
+## Bedienung
+
+<!-- Screenshot einer einzelnen Kanalzeile, ggf. mit Beschriftungen -->
+<img src="docs/images/zeile.png" alt="Eine Kanalzeile im Mixer" width="360">
+
+Klick auf das Schieberegler-Symbol in der Menüleiste. Jede Zeile ist eine App:
+
+| Element | Wirkung |
 |---|---|
-| `Sources/Audio/CoreAudio+Properties.swift` | Typsicherer Wrapper um die `AudioObject*`-C-API inkl. Property-Listenern |
-| `Sources/Audio/AudioProcess.swift` | Modell einer tonausgebenden App; löst Name und Icon auf |
-| `Sources/Audio/AudioProcessMonitor.swift` | Verfolgt per Listener, welche Apps gerade Ton ausgeben |
-| `Sources/Audio/ProcessTap.swift` | Tap + Aggregate Device + Realtime-Render für **eine** App |
-| `Sources/Audio/MixerEngine.swift` | Hält die Taps im Einklang mit den Nutzereinstellungen |
-| `Sources/Audio/AppVolumeStore.swift` | Lautstärke/Mute pro App, persistiert nach Bundle-ID |
-| `Sources/UI/MixerView.swift` | Die Menüleisten-Oberfläche |
+| Regler | Lautstärke dieser App, 0 – 100 % |
+| Lautsprecher-Symbol | Stummschalten und wieder aufheben |
+| Ausgegraute Zeile | App ist gerade still, bleibt kurz stehen |
 
-## Bauen und starten
+Eine App auf 100 % ohne Stummschaltung wird nicht angefasst — SplitSound
+klinkt sich nur dort ein, wo wirklich etwas zu regeln ist.
 
-```sh
-xcodegen generate                     # erzeugt SplitSound.xcodeproj aus project.yml
-open SplitSound.xcodeproj             # dort Signing-Team setzen, dann Run
-```
+## Gut zu wissen
 
-Oder von der Kommandozeile:
+**Safari heißt „Safari Graphics and Media".** Der Ton kommt bei Safari nicht aus
+dem Browser selbst, sondern aus einem Hilfsprozess. Alle WebKit-Browser teilen
+sich diesen Namen.
 
-```sh
-xcodebuild -project SplitSound.xcodeproj -scheme SplitSound \
-  -configuration Debug -derivedDataPath build \
-  CODE_SIGN_IDENTITY="-" build
-open build/Build/Products/Debug/SplitSound.app
-```
+**Beim ersten Ziehen des Reglers kann es kurz knacken.** In dem Moment klinkt
+sich SplitSound in den Tonweg der App ein.
 
-Die App ist eine reine Menüleisten-App (`LSUIElement`), es erscheint also kein
-Fenster und kein Dock-Symbol — nur das Schieberegler-Symbol oben rechts.
-
-### Release und DMG
+## Aus dem Quelltext bauen
 
 ```sh
-./scripts/build-release.sh                    # -> dist/SplitSound-<version>.dmg
+brew install xcodegen
+xcodegen generate
+open SplitSound.xcodeproj      # dort Signing-Team setzen, dann Run
 ```
 
-Standardmäßig ad-hoc signiert; auf fremden Rechnern blockiert Gatekeeper die App
-dann (Abhilfe: Rechtsklick → Öffnen). Mit Developer-ID-Zertifikat:
+Fertiges DMG bauen:
 
 ```sh
-SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" ./scripts/build-release.sh
+./scripts/build-release.sh     # -> dist/SplitSound-<version>.dmg
 ```
 
-## Wichtige Randbedingungen
+Tests:
 
-**Keine App Sandbox.** Process Taps sind unter Sandbox laut aktuellen
-Entwicklerberichten unzuverlässig, und ein App-Store-Vertrieb ist damit derzeit
-nicht sauber möglich. `SplitSound.entitlements` setzt `app-sandbox` bewusst auf
-`false`; die Verteilung läuft notarisiert außerhalb des App Store.
+```sh
+xcodebuild test -project SplitSound.xcodeproj -scheme SplitSound -destination 'platform=macOS'
+```
 
-**`NSAudioCaptureUsageDescription` ist Pflicht.** Ohne diesen Info.plist-Key
-beendet das System die App beim ersten Tap-Versuch.
-
-**Signierung.** TCC hängt die Audio-Berechtigung an die Signing-Identität. Mit
-Ad-hoc-Signatur (`-`) ändert sich diese bei jedem Build, die Berechtigung kann
-also immer wieder neu abgefragt werden. Für ruhiges Arbeiten in Xcode ein
-Team hinterlegen (ein kostenloser Apple-ID-Account genügt).
-
-## Erkenntnisse aus der Entwicklung
-
-Drei Dinge, die nicht in der Dokumentation stehen und beim Weiterbauen Zeit sparen:
-
-- **Safaris Ton kommt nicht aus Safari.** Er stammt vom WebKit-Hilfsprozess
-  `com.apple.WebKit.GPU` und erscheint als „Safari Graphics and Media". Alle
-  WebKit-Apps teilen sich diese Bundle-ID — die Persistenz in
-  `AppVolumeStore` kann sie deshalb nicht auseinanderhalten.
-- **Core Audio vergibt Prozess-Objekt-IDs wieder.** Dieselbe ID stand im Test
-  nacheinander für mehrere verschiedene Prozesse. `MixerEngine` legt deshalb
-  die PID daneben und verwirft einen Tap, wenn sie nicht mehr passt.
-- **Ein Tap auf einen toten Prozess liefert Stille, keinen Fehler.** Beim
-  Testen war das die Ursache scheinbar kaputter Taps: `activate()` meldete
-  Erfolg, der Callback lief mit korrekt geformten Puffern, und trotzdem kam
-  nichts an — der getappte Prozess war zwischenzeitlich beendet worden. Wer
-  hier debuggt, sollte zuerst `ProcessTap.peakLevel` und `renderCount` prüfen,
-  bevor er die Tap-Konfiguration verdächtigt.
-
-## Stand und offene Punkte
-
-Verifiziert:
-
-- Live-Erkennung tonausgebender Apps inklusive Kommandozeilen-Prozesse
-- Hörbar wirksame Lautstärkeregelung pro App über die volle Kette
-- Sauberes Aufräumen — keine verwaisten Aggregate Devices
-
-Noch offen:
-
-- **Gerätewechsel** (Kopfhörer ein-/ausstecken): `MixerEngine.rebuildAll()`
-  ist implementiert, aber nicht getestet.
-- **Mehrere Apps gleichzeitig geregelt**: jede bekommt derzeit ein eigenes
-  Aggregate Device. Funktioniert, ist bei vielen Apps aber verschwenderisch —
-  ein gemeinsames Gerät mit mehreren Taps wäre effizienter. Dann muss die
-  Zuordnung der Eingangspuffer zu den Taps sorgfältig aus der
-  Stream-Konfiguration abgeleitet werden, statt sich auf die Reihenfolge zu
-  verlassen.
-- **Latenz** wurde nicht gemessen.
-- **Notarisierung** für die Weitergabe ist nicht eingerichtet.
-- **Andere virtuelle Audiotreiber** im System lösen dieselbe Aufgabe auf
-  eigenem Weg. Solange so ein Treiber nicht als Standardausgabe gesetzt ist,
-  stört er nicht — ist er es doch, konkurrieren beide um denselben Signalweg.
-- Systemtöne erscheinen als `systemsoundserverd`; ein sprechender Name wie
-  „Systemtöne" wäre freundlicher.
+Wie das Ganze intern funktioniert, welche Fallstricke Core Audio hier bereithält
+und was noch offen ist, steht in **[docs/TECHNIK.md](docs/TECHNIK.md)**.
 
 ## Lizenz
 

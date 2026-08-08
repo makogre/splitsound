@@ -28,6 +28,22 @@ final class MixerEngine {
 
     private let log = Logger(subsystem: "com.maxgrell.SplitSound", category: "MixerEngine")
 
+    /// Was ein aktiver Tap gerade tut. Grundlage für Pegelanzeigen und Fehlersuche.
+    struct TapStatus {
+        /// Spitzenpegel (0…1) des zuletzt verarbeiteten Blocks.
+        let peakLevel: Float
+        /// Bisherige Durchläufe des Realtime-Callbacks. Steigt die Zahl nicht,
+        /// läuft die Audiokette nicht.
+        let renderCount: UInt64
+    }
+
+    var activeTapCount: Int { entries.count }
+
+    func status(for process: AudioProcess) -> TapStatus? {
+        guard let entry = entries[process.id], entry.pid == process.pid else { return nil }
+        return TapStatus(peakLevel: entry.tap.peakLevel, renderCount: entry.tap.renderCount)
+    }
+
     func start() {
         // Wechselt der Nutzer die Ausgabe (Kopfhoerer rein), zeigen alle
         // Aggregate Devices auf das falsche Geraet und muessen neu gebaut werden.

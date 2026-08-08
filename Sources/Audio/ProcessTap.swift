@@ -34,8 +34,6 @@ final class ProcessTap {
     private let peakStorage: UnsafeMutablePointer<Float>
     /// Zaehlt Render-Aufrufe, damit sichtbar ist, ob der IOProc ueberhaupt laeuft.
     private let renderCountStorage: UnsafeMutablePointer<UInt64>
-    /// Form des Eingangs im letzten Durchlauf — zur Fehlersuche, wenn kein Ton ankommt.
-    private let inputShapeStorage: UnsafeMutablePointer<InputShape>
 
     private var tapID: AudioObjectID = .unknown
     private var aggregateID: AudioObjectID = .unknown
@@ -48,18 +46,6 @@ final class ProcessTap {
         get { gainStorage.pointee }
         set { gainStorage.pointee = max(0, min(newValue, 1)) }
     }
-
-    /// Momentaufnahme der Eingangspuffer, wie der IOProc sie zuletzt gesehen hat.
-    struct InputShape {
-        var bufferCount: UInt32 = 0
-        var channels: UInt32 = 0
-        var byteSize: UInt32 = 0
-        var outputBufferCount: UInt32 = 0
-        var outputChannels: UInt32 = 0
-        var outputByteSize: UInt32 = 0
-    }
-
-    var inputShape: InputShape { inputShapeStorage.pointee }
 
     /// Spitzenpegel (0…1) des zuletzt gerenderten Blocks.
     var peakLevel: Float { peakStorage.pointee }
@@ -75,8 +61,6 @@ final class ProcessTap {
         self.peakStorage.initialize(to: 0)
         self.renderCountStorage = .allocate(capacity: 1)
         self.renderCountStorage.initialize(to: 0)
-        self.inputShapeStorage = .allocate(capacity: 1)
-        self.inputShapeStorage.initialize(to: InputShape())
     }
 
     deinit {
@@ -87,8 +71,6 @@ final class ProcessTap {
         peakStorage.deallocate()
         renderCountStorage.deinitialize(count: 1)
         renderCountStorage.deallocate()
-        inputShapeStorage.deinitialize(count: 1)
-        inputShapeStorage.deallocate()
     }
 
     // MARK: - Lebenszyklus
@@ -167,8 +149,6 @@ final class ProcessTap {
         let gainPointer = gainStorage
         let peakPointer = peakStorage
         let countPointer = renderCountStorage
-        let shapePointer = inputShapeStorage
-
         var procID: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) {
             _, inputData, _, outputData, _ in
@@ -177,8 +157,7 @@ final class ProcessTap {
                 input: inputData,
                 output: outputData,
                 gain: gainPointer.pointee,
-                peak: peakPointer,
-                shape: shapePointer
+                peak: peakPointer
             )
         }
         try status.check("IOProc anlegen")
@@ -195,12 +174,14 @@ final class ProcessTap {
 
     /// Laeuft auf dem Audio-Realtime-Thread. Kein Allozieren, kein Sperren,
     /// keine Swift-Runtime-Aufrufe — nur Zeigerarithmetik.
-    private static func render(
+    ///
+    /// Nicht `private`, damit die Kanalzuordnung mit synthetischen Puffern
+    /// geprueft werden kann, ohne echte Audiohardware zu brauchen.
+    static func render(
         input: UnsafePointer<AudioBufferList>,
         output: UnsafeMutablePointer<AudioBufferList>,
         gain: Float,
-        peak: UnsafeMutablePointer<Float>,
-        shape: UnsafeMutablePointer<InputShape>
+        peak: UnsafeMutablePointer<Float>
     ) {
         var blockPeak: Float = 0
         defer { peak.pointee = blockPeak }
@@ -210,15 +191,6 @@ final class ProcessTap {
         )
         let outputList = UnsafeMutableAudioBufferListPointer(output)
 
-        shape.pointee = InputShape(
-            bufferCount: UInt32(inputList.count),
-            channels: inputList.count > 0 ? inputList[0].mNumberChannels : 0,
-            byteSize: inputList.count > 0 ? inputList[0].mDataByteSize : 0,
-            outputBufferCount: UInt32(outputList.count),
-            outputChannels: outputList.count > 0 ? outputList[0].mNumberChannels : 0,
-            outputByteSize: outputList.count > 0 ? outputList[0].mDataByteSize : 0
-        )
-
         for index in 0..<outputList.count {
             let outBuffer = outputList[index]
             guard let outData = outBuffer.mData else { continue }
@@ -227,28 +199,67 @@ final class ProcessTap {
             // Pufferinhalt durch.
             guard index < inputList.count,
                   let inData = inputList[index].mData,
-                  inputList[index].mNumberChannels == outBuffer.mNumberChannels
+                  inputList[index].mNumberChannels > 0,
+                  outBuffer.mNumberChannels > 0
             else {
                 memset(outData, 0, Int(outBuffer.mDataByteSize))
                 continue
             }
 
-            let byteCount = min(inputList[index].mDataByteSize, outBuffer.mDataByteSize)
-            let sampleCount = Int(byteCount) / MemoryLayout<Float>.size
-
             let source = inData.assumingMemoryBound(to: Float.self)
             let destination = outData.assumingMemoryBound(to: Float.self)
+            let inChannels = Int(inputList[index].mNumberChannels)
+            let outChannels = Int(outBuffer.mNumberChannels)
 
-            for sample in 0..<sampleCount {
-                let value = source[sample]
-                let magnitude = value < 0 ? -value : value
-                if magnitude > blockPeak { blockPeak = magnitude }
-                destination[sample] = value * gain
+            let inFrames = Int(inputList[index].mDataByteSize)
+                / (MemoryLayout<Float>.size * inChannels)
+            let outFrames = Int(outBuffer.mDataByteSize)
+                / (MemoryLayout<Float>.size * outChannels)
+            let frames = min(inFrames, outFrames)
+
+            if inChannels == outChannels {
+                // Regelfall (Stereo auf Stereo): flach durchkopieren.
+                for sample in 0..<(frames * inChannels) {
+                    let value = source[sample]
+                    let magnitude = value < 0 ? -value : value
+                    if magnitude > blockPeak { blockPeak = magnitude }
+                    destination[sample] = value * gain
+                }
+            } else if outChannels < inChannels {
+                // Ausgabegeraet hat weniger Kanaele (z. B. mono): mischen,
+                // statt die ueberzaehligen Kanaele wegzuwerfen.
+                let scale = gain / Float(inChannels)
+                for frame in 0..<frames {
+                    var sum: Float = 0
+                    for channel in 0..<inChannels {
+                        let value = source[frame * inChannels + channel]
+                        let magnitude = value < 0 ? -value : value
+                        if magnitude > blockPeak { blockPeak = magnitude }
+                        sum += value
+                    }
+                    let mixed = sum * scale
+                    for channel in 0..<outChannels {
+                        destination[frame * outChannels + channel] = mixed
+                    }
+                }
+            } else {
+                // Mehr Ausgabekanaele als Eingangskanaele: reihum wiederholen,
+                // damit z. B. Mono-Quellen auf allen Kanaelen zu hoeren sind.
+                for frame in 0..<frames {
+                    for channel in 0..<outChannels {
+                        let value = source[frame * inChannels + (channel % inChannels)]
+                        let magnitude = value < 0 ? -value : value
+                        if magnitude > blockPeak { blockPeak = magnitude }
+                        destination[frame * outChannels + channel] = value * gain
+                    }
+                }
             }
 
-            // Falls der Ausgang groesser ist als der Eingang: Rest stillegen.
-            if outBuffer.mDataByteSize > byteCount {
-                memset(outData + Int(byteCount), 0, Int(outBuffer.mDataByteSize - byteCount))
+            // Liefert der Eingang weniger Frames als der Ausgang fasst,
+            // bleibt der Rest sonst mit altem Inhalt stehen.
+            let writtenBytes = frames * outChannels * MemoryLayout<Float>.size
+            if Int(outBuffer.mDataByteSize) > writtenBytes {
+                memset(outData + writtenBytes, 0, Int(outBuffer.mDataByteSize) - writtenBytes)
             }
         }
     }
