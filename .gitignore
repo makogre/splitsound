@@ -1,0 +1,20 @@
+# Build-Artefakte
+build/
+dist/
+DerivedData/
+*.o
+*.dSYM/
+
+# Von XcodeGen aus project.yml erzeugt
+SplitSound.xcodeproj/
+
+# Xcode-Nutzerkram
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# macOS
+.DS_Store
+
+# Lokale Werkzeug-Konfiguration (maschinenspezifische Pfade)
+.claude/settings.local.json

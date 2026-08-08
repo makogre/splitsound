@@ -1,0 +1,34 @@
+name: SplitSound
+
+options:
+  bundleIdPrefix: com.maxgrell
+  deploymentTarget:
+    macOS: "14.4"
+  createIntermediateGroups: true
+
+targets:
+  SplitSound:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maxgrell.SplitSound
+        PRODUCT_NAME: SplitSound
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sources/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Sources/Resources/SplitSound.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        # Swift 5 language mode: Core Audio IOProc-Callbacks sind C-Funktionszeiger
+        # ohne Sendable-Annotationen; strict concurrency waere hier reines Rauschen.
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        DEAD_CODE_STRIPPING: YES
+    dependencies:
+      - sdk: CoreAudio.framework
+      - sdk: AudioToolbox.framework
+      - sdk: AVFoundation.framework
