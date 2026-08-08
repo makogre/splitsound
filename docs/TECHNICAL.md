@@ -34,6 +34,7 @@ untouched, lowest-latency path; a tap there would only cost latency and CPU.
 | `Sources/Audio/AppVolumeStore.swift` | Volume/mute per app, persisted by bundle ID |
 | `Sources/UI/MixerView.swift` | The menu bar interface |
 | `Tests/RenderTests.swift` | Channel mapping in the realtime path, using synthetic buffers |
+| `Tests/AppIdentityTests.swift` | The path rule attributing helper executables to their host app |
 
 ### One aggregate device per app
 
@@ -63,7 +64,7 @@ a free Apple ID account is enough.
 
 ## Pitfalls
 
-Five things that are not in the documentation and will save you time. All of
+Six things that are not in the documentation and will save you time. All of
 them caused real debugging sessions during development.
 
 **A missing recording permission looks exactly like a broken tap.** Without TCC
@@ -78,14 +79,32 @@ process. So the first diagnosis for "no sound" should always be
 `ProcessTap.peakLevel` and `renderCount`, before suspecting the tap
 configuration.
 
-**Safari's audio does not come from Safari.** It comes from the WebKit helper
-`com.apple.WebKit.GPU`, which reports itself as "Safari Graphics and Media".
-Every WebKit browser shares that bundle ID. `AppIdentity` therefore maps known
-helper bundle IDs back to their host app by stripping the display-name suffix
-(" Graphics and Media" and friends) and matching the remainder against running
-applications. That is a heuristic — macOS exposes no supported way to ask which
-app a helper is working for — and it also fixes persistence, which would
-otherwise store one shared setting for all WebKit browsers.
+**The process making the sound is often not the app the user recognises.**
+Two different shapes of this problem exist, and they need different answers:
+
+*Nested helpers.* Electron apps (Discord, Teams, VS Code, Slack) ship their
+audio in a helper inside the main bundle, at
+`Foo.app/Contents/Frameworks/Foo Helper.app/Contents/MacOS/Foo Helper`.
+`AppIdentity.outermostAppBundle(forExecutableAt:)` walks the executable path
+upwards and attributes the process to the *outermost* `.app` — generically, with
+no per-app list. Outermost matters: stopping at the first bundle found would
+label the row "Foo Helper".
+
+*XPC services.* Safari's audio comes from `com.apple.WebKit.GPU`, which lives in
+WebKit.framework — outside Safari's bundle, so the path rule cannot find the
+host. It reports itself as "Safari Graphics and Media", and every WebKit browser
+shares that bundle ID. Here `AppIdentity` strips the known display-name suffix
+(" Graphics and Media" and friends) and matches the remainder against running
+apps. That one is a heuristic; macOS exposes no supported way to ask which app a
+service is working for.
+
+Both also fix persistence: without them, every WebKit browser would share a
+single setting, so turning Safari down would turn Mail down too.
+
+**`proc_name` fails where `proc_pidpath` succeeds.** For several system daemons
+`proc_name` returns nothing, which produced rows labelled "PID 25382". It also
+truncates long names. The last path component of `proc_pidpath` is the better
+source, with `proc_name` only as a fallback.
 
 **Core Audio reuses process object IDs.** During testing the same ID stood for
 several different processes in succession. `MixerEngine` therefore keeps the PID
@@ -105,6 +124,8 @@ Verified:
   (measured: the tap delivers exactly the source amplitude, 0.24997 for 0.25)
 - Output device switching at runtime — the chain survives the switch
 - Channel mapping for stereo/mono/multichannel, covered by tests
+- Helper attribution: Safari and Mail resolve to their own icon and their own
+  persistence key, rather than sharing one WebKit entry
 - Clean teardown — no orphaned aggregate devices
 
 Open:
@@ -117,4 +138,5 @@ Open:
   if one is, both compete for the same signal path.
 - **Level meters**: `MixerEngine.status(for:)` already reports peak levels per
   app, the interface does not display them yet.
-- System sounds appear as `systemsoundserverd`; a friendlier name would help.
+- **Nested-helper attribution** is covered by tests but has not been exercised
+  against a running Electron app end to end.

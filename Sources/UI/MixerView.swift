@@ -139,8 +139,12 @@ private struct AppChannelRow: View {
             if let icon = process.icon {
                 Image(nsImage: icon).resizable()
             } else {
-                Image(systemName: "app.dashed")
+                // Daemons and command line tools have no icon; a fitting
+                // symbol reads better than an empty slot.
+                Image(systemName: process.symbolName)
                     .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .padding(3)
                     .foregroundStyle(.secondary)
             }
         }
