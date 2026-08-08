@@ -128,3 +128,7 @@ Noch offen:
   doch, konkurrieren beide um denselben Signalweg.
 - Systemtöne erscheinen als `systemsoundserverd`; ein sprechender Name wie
   „Systemtöne" wäre freundlicher.
+
+## Lizenz
+
+[MIT](LICENSE)
