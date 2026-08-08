@@ -24,6 +24,16 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                if !launchAtLogin.isInStableLocation {
+                    Label(
+                        "SplitSound is not running from your Applications folder. "
+                        + "A login item added now points at the current location and "
+                        + "stops working once that location goes away.",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                }
             }
 
             Section("Mixer") {

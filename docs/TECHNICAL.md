@@ -66,7 +66,7 @@ a free Apple ID account is enough.
 
 ## Pitfalls
 
-Seven things that are not in the documentation and will save you time. All of
+Eight things that are not in the documentation and will save you time. All of
 them caused real debugging sessions during development.
 
 **A missing recording permission looks exactly like a broken tap.** Without TCC
@@ -116,6 +116,16 @@ whether audio is arriving is the only signal that cannot lie.
 truncates long names. The last path component of `proc_pidpath` is the better
 source, with `proc_name` only as a fallback.
 
+**Login items are recorded by path, not by bundle identifier.** With several
+copies of the same bundle ID on disk — the installed app plus Debug and Release
+build products — `SMAppService.mainApp` registered the *build product*, so the
+login item would have launched a stale binary from a directory that gets wiped.
+`lsregister -dump | grep SplitSound` lists the copies the system knows about and
+`lsregister -u <path>` removes the unwanted ones; the BTM record itself is only
+rewritten when the item is toggled off and on again (`sfltool dumpbtm` shows it).
+The settings window now warns when the app runs from outside Applications, which
+is also what happens when someone launches it straight from the mounted DMG.
+
 **Core Audio reuses process object IDs.** During testing the same ID stood for
 several different processes in succession. `MixerEngine` therefore keeps the PID
 alongside and discards a tap once it no longer matches.
@@ -150,5 +160,7 @@ Open:
   app, the interface does not display them yet.
 - **Nested-helper attribution** is covered by tests but has not been exercised
   against a running Electron app end to end.
-- **Launch at login** uses `SMAppService.mainApp`, which wants a stable code
-  signature. Whether registration survives ad-hoc builds is untested.
+- **Launch at login** works with an ad-hoc signature: verified via
+  `sfltool dumpbtm`, which shows the item enabled and pointing at
+  `/Applications/SplitSound.app`. Whether it survives across rebuilds, where
+  the signature changes, is untested.

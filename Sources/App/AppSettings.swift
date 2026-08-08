@@ -49,6 +49,19 @@ final class LaunchAtLogin {
 
     private let log = Logger(subsystem: "com.maxgrell.SplitSound", category: "LaunchAtLogin")
 
+    /// Login items are recorded by bundle path, not by bundle identifier.
+    ///
+    /// Registering from a temporary location — a mounted DMG, a build
+    /// directory — records that path, and the item silently breaks once the
+    /// location disappears. Worse, when several copies of the same bundle ID
+    /// exist, the system may pick one of the others: during development the
+    /// item ended up pointing at a build product rather than the installed app.
+    var isInStableLocation: Bool {
+        let path = Bundle.main.bundlePath
+        return path.hasPrefix("/Applications/")
+            || path.hasPrefix(NSHomeDirectory() + "/Applications/")
+    }
+
     init() {
         isEnabled = SMAppService.mainApp.status == .enabled
     }
