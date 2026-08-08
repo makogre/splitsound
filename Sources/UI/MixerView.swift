@@ -9,6 +9,9 @@ struct MixerView: View {
 
     @Environment(\.openSettings) private var openSettings
 
+    /// Measured height of the row list, so the popover window can size to it.
+    @State private var contentHeight: CGFloat = 0
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -18,16 +21,7 @@ struct MixerView: View {
             if monitor.processes.isEmpty {
                 emptyState
             } else {
-                ScrollView {
-                    VStack(spacing: 2) {
-                        ForEach(monitor.processes) { process in
-                            AppChannelRow(process: process, volumes: volumes)
-                        }
-                    }
-                    .padding(.vertical, 6)
-                }
-                // Roughly six rows; beyond that it scrolls.
-                .frame(maxHeight: 320)
+                channelList
             }
 
             Divider()
@@ -36,6 +30,34 @@ struct MixerView: View {
         }
         .frame(width: 320)
     }
+
+    /// The rows, scrolling only once there are more than fit.
+    ///
+    /// The measurement is not decoration. A bare `ScrollView` has no intrinsic
+    /// height, and the menu bar window sizes itself to its content — so the
+    /// list collapsed to zero height and the popover showed nothing but its
+    /// header and footer. Measuring the content and asking for that height
+    /// (capped) gives the window something concrete to size to.
+    private var channelList: some View {
+        ScrollView {
+            VStack(spacing: 2) {
+                ForEach(monitor.processes) { process in
+                    AppChannelRow(process: process, volumes: volumes)
+                }
+            }
+            .padding(.vertical, 6)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                }
+            )
+        }
+        .frame(height: min(contentHeight, Self.maximumListHeight))
+        .onPreferenceChange(ContentHeightKey.self) { contentHeight = $0 }
+    }
+
+    /// Roughly six rows; beyond that the list scrolls.
+    private static let maximumListHeight: CGFloat = 320
 
     private var header: some View {
         HStack {
@@ -111,6 +133,14 @@ struct MixerView: View {
     }
 
     private static let donateURL = URL(string: "https://buymeacoffee.com/makogre")!
+}
+
+/// Carries the measured height of the row list up to `MixerView`.
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }
 
 /// A single channel row: icon, name, mute button, slider.

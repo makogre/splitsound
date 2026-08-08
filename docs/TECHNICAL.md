@@ -66,7 +66,7 @@ a free Apple ID account is enough.
 
 ## Pitfalls
 
-Ten things that are not in the documentation and will save you time. All of
+Eleven things that are not in the documentation and will save you time. All of
 them caused real debugging sessions during development.
 
 **Feeding Core Audio an uninitialized *typed* buffer is undefined behaviour,
@@ -93,6 +93,14 @@ validation otherwise refuses to load the test bundle. What does catch it is the
 smoke check in `scripts/build-release.sh`: it launches the built app and fails
 the build if the app reports audio objects but zero usable ones. That guard was
 verified both ways — green with the fix, red with the bug restored.
+
+**A `ScrollView` collapses to nothing in a menu bar popover.** The window
+sizes itself to its content, and a scroll view has no intrinsic height, so the
+row list rendered at zero height: the popover showed its header and footer and
+nothing in between. The giveaway was that the "no app is playing" message was
+*also* absent — the list was not empty, it was invisible. `MixerView` now
+measures the rows with a `GeometryReader` preference and asks for that height,
+capped, so the window has something concrete to size to.
 
 **`xcodebuild test` leaves a second app in your menu bar.** SplitSound is its
 own test host, and a menu bar app has no window to close, so the test build
