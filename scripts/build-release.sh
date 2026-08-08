@@ -31,6 +31,41 @@ xcodebuild -project "$APP_NAME.xcodeproj" -scheme "$APP_NAME" \
 
 [ -d "$PRODUCT" ] || { echo "Build product missing: $PRODUCT" >&2; exit 1; }
 
+# --- Smoke check -------------------------------------------------------------
+# Launches the built app and verifies it can actually interpret Core Audio's
+# process objects. This exists because of a bug that appeared *only* in
+# optimised builds: the property readers returned nothing, every process was
+# discarded, and the mixer stayed permanently empty. No unit test reproduces
+# it — the test bundle is optimised differently — so the built app is checked
+# directly. See docs/TECHNICAL.md.
+echo "==> Smoke check on the built app"
+SINCE=$(date "+%Y-%m-%d %H:%M:%S")
+pkill -x "$APP_NAME" 2>/dev/null || true
+sleep 1
+open "$PRODUCT"
+sleep 5
+
+REFRESH=$(log show --start "$SINCE" \
+  --predicate 'subsystem == "com.maxgrell.SplitSound" AND category == "ProcessMonitor"' \
+  --info 2>/dev/null | grep -o 'refresh: [0-9]* audio object(s), [0-9]* usable' | tail -1)
+pkill -x "$APP_NAME" 2>/dev/null || true
+
+if [ -z "$REFRESH" ]; then
+  # Not skipped quietly: a check that silently passes is worse than no check.
+  echo "  FAILED: the app logged no process refresh at all." >&2
+  echo "  Either it did not start, or monitoring never ran." >&2
+  exit 1
+else
+  USABLE=$(echo "$REFRESH" | sed -E 's/.*, ([0-9]+) usable/\1/')
+  echo "  $REFRESH"
+  if [ "$USABLE" -eq 0 ]; then
+    echo "  FAILED: the app sees audio objects but can interpret none of them." >&2
+    echo "  This is the optimised-build reader bug. Do not ship this build." >&2
+    exit 1
+  fi
+  echo "  ok"
+fi
+
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
   "$PRODUCT/Contents/Info.plist")
 DMG_PATH="$DIST_DIR/$APP_NAME-$VERSION.dmg"

@@ -2,25 +2,18 @@ import SwiftUI
 
 @main
 struct SplitSoundApp: App {
-    @State private var monitor = AudioProcessMonitor()
-    @State private var volumes = AppVolumeStore()
-    @State private var engine = MixerEngine()
-    @State private var settings = AppSettings()
-    @State private var launchAtLogin = LaunchAtLogin()
+    /// The controller starts monitoring at launch. Doing it from the menu bar
+    /// content instead would defer everything until the user first opens the
+    /// menu — see AppController.
+    @NSApplicationDelegateAdaptor(AppController.self) private var controller
 
     var body: some Scene {
         MenuBarExtra {
-            MixerView(monitor: monitor, volumes: volumes, engine: engine)
-                .task {
-                    applySettings()
-                    monitor.start()
-                    engine.start()
-                }
-                // Keep taps in sync whenever the process list or settings change.
-                .onChange(of: monitor.processes) { syncEngine() }
-                .onChange(of: volumes.revision) { syncEngine() }
-                .onChange(of: settings.showSystemProcesses) { applySettings() }
-                .onChange(of: settings.gracePeriod) { applySettings() }
+            MixerView(
+                monitor: controller.monitor,
+                volumes: controller.volumes,
+                engine: controller.engine
+            )
         } label: {
             Image(systemName: "slider.vertical.3")
         }
@@ -28,20 +21,11 @@ struct SplitSoundApp: App {
 
         Settings {
             SettingsView(
-                settings: settings,
-                launchAtLogin: launchAtLogin,
-                volumes: volumes,
-                engine: engine
+                settings: controller.settings,
+                launchAtLogin: controller.launchAtLogin,
+                volumes: controller.volumes,
+                engine: controller.engine
             )
         }
-    }
-
-    private func syncEngine() {
-        engine.sync(processes: monitor.processes, volumes: volumes)
-    }
-
-    private func applySettings() {
-        monitor.showSystemProcesses = settings.showSystemProcesses
-        monitor.gracePeriod = settings.gracePeriod
     }
 }

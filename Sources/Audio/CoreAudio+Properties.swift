@@ -51,16 +51,26 @@ extension AudioObjectID {
     // MARK: - Reading
 
     /// Reads a fixed-size property (Int32, UInt32, Bool32, structs, …).
+    ///
+    /// Raw memory plus `load(as:)` on purpose. Handing Core Audio a *typed*
+    /// buffer that Swift considers uninitialized and then reading `.pointee`
+    /// is undefined behaviour: the optimiser is free to assume the memory was
+    /// never written. Debug builds happened to work, Release builds returned
+    /// nothing — which is exactly what users would have got.
     func read<T>(_ selector: AudioObjectPropertySelector, as type: T.Type = T.self) throws -> T {
         var address = AudioObjectPropertyAddress.global(selector)
         var size = UInt32(MemoryLayout<T>.size)
 
-        let value = try withUnsafeTemporaryAllocation(of: T.self, capacity: 1) { buffer -> T in
-            let status = AudioObjectGetPropertyData(self, &address, 0, nil, &size, buffer.baseAddress!)
-            try status.check("Reading \(selector.fourCharCode) on object \(self)")
-            return buffer.baseAddress!.pointee
-        }
-        return value
+        let buffer = UnsafeMutableRawPointer.allocate(
+            byteCount: MemoryLayout<T>.size,
+            alignment: MemoryLayout<T>.alignment
+        )
+        defer { buffer.deallocate() }
+
+        try AudioObjectGetPropertyData(self, &address, 0, nil, &size, buffer)
+            .check("Reading \(selector.fourCharCode) on object \(self)")
+
+        return buffer.load(as: T.self)
     }
 
     /// Reads a variable-length property as an array (object lists, for example).
@@ -71,17 +81,23 @@ extension AudioObjectID {
         try AudioObjectGetPropertyDataSize(self, &address, 0, nil, &byteSize)
             .check("Sizing \(selector.fourCharCode) on object \(self)")
 
-        let capacity = Int(byteSize) / MemoryLayout<T>.stride
-        guard capacity > 0 else { return [] }
+        guard byteSize > 0 else { return [] }
 
-        let buffer = UnsafeMutableBufferPointer<T>.allocate(capacity: capacity)
+        // Same reasoning as `read` above: raw memory, then explicit loads.
+        let buffer = UnsafeMutableRawPointer.allocate(
+            byteCount: Int(byteSize),
+            alignment: MemoryLayout<T>.alignment
+        )
         defer { buffer.deallocate() }
 
-        try AudioObjectGetPropertyData(self, &address, 0, nil, &byteSize, buffer.baseAddress!)
+        try AudioObjectGetPropertyData(self, &address, 0, nil, &byteSize, buffer)
             .check("Reading \(selector.fourCharCode) on object \(self)")
 
         // The call corrects byteSize to the amount actually written.
-        return Array(buffer.prefix(Int(byteSize) / MemoryLayout<T>.stride))
+        let count = Int(byteSize) / MemoryLayout<T>.stride
+        return (0..<count).map {
+            buffer.load(fromByteOffset: $0 * MemoryLayout<T>.stride, as: T.self)
+        }
     }
 
     /// Reads a CFString property. Core Audio hands the reference over at +1,

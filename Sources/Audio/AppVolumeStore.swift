@@ -24,6 +24,10 @@ final class AppVolumeStore {
     /// a dictionary is awkward as an `onChange` source.
     private(set) var revision = 0
 
+    /// Called after any change, so the engine can follow along even when the
+    /// interface is closed.
+    @ObservationIgnored var onChanged: (() -> Void)?
+
     private var settings: [String: Settings] = [:]
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -46,6 +50,7 @@ final class AppVolumeStore {
             settings[Self.key(for: process)] = newValue
             revision &+= 1
             save()
+            onChanged?()
         }
     }
 
@@ -55,6 +60,8 @@ final class AppVolumeStore {
     /// disable the reset button when there is nothing to reset.
     var hasStoredSettings: Bool { !settings.isEmpty }
 
+    var storedCount: Int { settings.count }
+
     /// Forgets every stored volume. The engine picks this up through
     /// `revision` and drops the taps that are no longer needed.
     func resetAll() {
@@ -62,6 +69,7 @@ final class AppVolumeStore {
         settings.removeAll()
         revision &+= 1
         save()
+        onChanged?()
     }
 
     // MARK: - Persistence

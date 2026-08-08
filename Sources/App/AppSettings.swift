@@ -11,15 +11,25 @@ final class AppSettings {
     /// Off by default: they appear whenever the system makes any noise and
     /// would push the apps the user cares about out of view.
     var showSystemProcesses: Bool {
-        didSet { defaults.set(showSystemProcesses, forKey: Keys.showSystemProcesses) }
+        didSet {
+            defaults.set(showSystemProcesses, forKey: Keys.showSystemProcesses)
+            onChanged?()
+        }
     }
 
     /// How long a silenced app stays visible, in seconds.
     var gracePeriod: TimeInterval {
-        didSet { defaults.set(gracePeriod, forKey: Keys.gracePeriod) }
+        didSet {
+            defaults.set(gracePeriod, forKey: Keys.gracePeriod)
+            onChanged?()
+        }
     }
 
     static let gracePeriodChoices: [TimeInterval] = [10, 30, 60, 300]
+
+    /// Called after any change. The settings window can be open while the menu
+    /// bar popover is closed, so the interface cannot be the one to propagate this.
+    @ObservationIgnored var onChanged: (() -> Void)?
 
     private enum Keys {
         static let showSystemProcesses = "showSystemProcesses"

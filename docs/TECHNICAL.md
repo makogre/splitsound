@@ -66,8 +66,33 @@ a free Apple ID account is enough.
 
 ## Pitfalls
 
-Eight things that are not in the documentation and will save you time. All of
+Nine things that are not in the documentation and will save you time. All of
 them caused real debugging sessions during development.
+
+**Feeding Core Audio an uninitialized *typed* buffer is undefined behaviour,
+and it only bites in Release.** The property readers used to do this:
+
+```swift
+withUnsafeTemporaryAllocation(of: T.self, capacity: 1) { buffer in
+    AudioObjectGetPropertyData(self, &address, 0, nil, &size, buffer.baseAddress!)
+    return buffer.baseAddress!.pointee     // reading memory Swift thinks is uninitialized
+}
+```
+
+Swift considers that memory never written, so the optimiser may reason the
+read away. Debug builds worked perfectly; Release builds discarded every
+process object and the mixer stayed empty forever — the shipped configuration
+was the broken one. The fix is raw memory plus an explicit `load(as:)`, which
+is the defined way to read something C wrote.
+
+Two things about catching it are worth knowing. Unit tests do **not**: with the
+bug reintroduced the whole suite stays green in Debug *and* Release, because
+the test bundle is optimised differently from the app target. And running the
+tests against Release at all needs `ENABLE_HARDENED_RUNTIME=NO`, since library
+validation otherwise refuses to load the test bundle. What does catch it is the
+smoke check in `scripts/build-release.sh`: it launches the built app and fails
+the build if the app reports audio objects but zero usable ones. That guard was
+verified both ways — green with the fix, red with the bug restored.
 
 **A missing recording permission looks exactly like a broken tap.** Without TCC
 approval, Core Audio delivers *silence instead of an error*:
@@ -147,6 +172,7 @@ Verified:
 - Helper attribution: Safari and Mail resolve to their own icon and their own
   persistence key, rather than sharing one WebKit entry
 - Clean teardown — no orphaned aggregate devices
+- Monitoring and saved volumes apply from launch, without opening the menu
 
 Open:
 

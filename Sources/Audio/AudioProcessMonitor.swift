@@ -24,6 +24,10 @@ final class AudioProcessMonitor {
     private(set) var processes: [AudioProcess] = []
     private(set) var lastError: String?
 
+    /// Called after the visible list changes. The engine listens here rather
+    /// than through the interface, which only exists while the menu is open.
+    @ObservationIgnored var onProcessesChanged: (() -> Void)?
+
     @ObservationIgnored private var listObservation: PropertyObservation?
     @ObservationIgnored private var processObservations: [AudioObjectID: PropertyObservation] = [:]
     @ObservationIgnored private var lastActiveByProcess: [AudioObjectID: Date] = [:]
@@ -54,7 +58,7 @@ final class AudioProcessMonitor {
     // MARK: - Refresh
 
     /// Re-reads the full process list and rebuilds the visible mixer list.
-    private func refresh() {
+    func refresh() {
         let objectIDs: [AudioObjectID]
         do {
             objectIDs = try AudioObjectID.system.readArray(kAudioHardwarePropertyProcessObjectList)
@@ -85,6 +89,11 @@ final class AudioProcessMonitor {
         processObservations = processObservations.filter { liveIDs.contains($0.key) }
         lastActiveByProcess = lastActiveByProcess.filter { liveIDs.contains($0.key) }
 
+        // Logged on purpose, and relied upon by scripts/build-release.sh:
+        // "0 usable" out of a non-empty object list is the signature of the
+        // optimiser bug described in docs/TECHNICAL.md, which no unit test
+        // reproduces.
+        log.info("refresh: \(objectIDs.count) audio object(s), \(discovered.count) usable")
         publish(discovered, now: now)
     }
 
@@ -101,6 +110,7 @@ final class AudioProcessMonitor {
 
         if visible != processes {
             processes = visible
+            onProcessesChanged?()
         }
         scheduleGraceExpiryIfNeeded(now: now)
     }
