@@ -7,8 +7,7 @@
 Regle den Ton jeder App einzeln — Video leiser, Musik lauter, Meeting stumm.
 Das, was der Lautstärkemixer unter Windows kann und macOS bis heute nicht mitbringt.
 
-<!-- Screenshot des geöffneten Mixers in der Menüleiste -->
-<img src="docs/images/mixer.png" alt="SplitSound-Mixer in der Menüleiste" width="360">
+<img src="docs/images/mixer.png" alt="SplitSound-Mixer in der Menüleiste mit zwei Apps" width="360">
 
 </div>
 
@@ -41,10 +40,9 @@ verändern.
 
 ## Bedienung
 
-<!-- Screenshot einer einzelnen Kanalzeile, ggf. mit Beschriftungen -->
-<img src="docs/images/zeile.png" alt="Eine Kanalzeile im Mixer" width="360">
-
 Klick auf das Schieberegler-Symbol in der Menüleiste. Jede Zeile ist eine App:
+
+<img src="docs/images/zeile.png" alt="Eine Kanalzeile: Icon, Name, Prozentwert, Stumm-Schalter und Regler" width="340">
 
 | Element | Wirkung |
 |---|---|
@@ -86,6 +84,11 @@ xcodebuild test -project SplitSound.xcodeproj -scheme SplitSound -destination 'p
 
 Wie das Ganze intern funktioniert, welche Fallstricke Core Audio hier bereithält
 und was noch offen ist, steht in **[docs/TECHNIK.md](docs/TECHNIK.md)**.
+
+## Unterstützen
+
+SplitSound ist kostenlos und quelloffen. Wenn es dir Arbeit abnimmt, freue ich
+mich über einen Kaffee: [buymeacoffee.com/makogre](https://buymeacoffee.com/makogre)
 
 ## Lizenz
 

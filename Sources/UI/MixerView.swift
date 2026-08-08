@@ -69,11 +69,28 @@ struct MixerView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
             Spacer()
+            donateButton
         }
         .font(.callout)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
+
+    /// Hinweis auf die Kaffeekasse. Bewusst zurueckhaltend gehalten — er soll
+    /// auffindbar sein, ohne bei jeder Lautstaerkeaenderung im Weg zu stehen.
+    private var donateButton: some View {
+        Link(destination: Self.donateURL) {
+            HStack(spacing: 4) {
+                Image(systemName: "cup.and.saucer.fill")
+                Text("Donate")
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .help("Entwicklung unterstützen — buymeacoffee.com/makogre")
+    }
+
+    private static let donateURL = URL(string: "https://buymeacoffee.com/makogre")!
 }
 
 /// Eine Kanalzeile: Icon, Name, Mute-Button, Slider.
