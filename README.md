@@ -2,94 +2,91 @@
 
 # SplitSound
 
-**Ein Lautstärkemixer für die macOS-Menüleiste.**
+**A per-app volume mixer for the macOS menu bar.**
 
-Regle den Ton jeder App einzeln — Video leiser, Musik lauter, Meeting stumm.
-Das, was der Lautstärkemixer unter Windows kann und macOS bis heute nicht mitbringt.
+Turn the video down, the music up, the meeting off — each app on its own slider.
+The thing Windows has had for years and macOS still does not ship.
 
-<img src="docs/images/mixer.png" alt="SplitSound-Mixer in der Menüleiste mit zwei Apps" width="360">
+<img src="docs/images/mixer.png" alt="The SplitSound mixer open in the menu bar, showing two apps" width="360">
 
 </div>
 
 ---
 
-## Was es kann
+## What it does
 
-- **Lautstärke pro App** — jede tonausgebende App bekommt einen eigenen Regler
-- **Einzeln stummschalten**, ohne die App zu berühren
-- **Einstellungen bleiben gespeichert** — Safari bleibt leise, auch nach dem Neustart
-- **Zeigt nur, was gerade läuft** — keine endlose Liste, sondern die Apps, die
-  tatsächlich Ton machen
-- **Bleibt aus dem Weg** — lebt in der Menüleiste, kein Fenster, kein Dock-Symbol
+- **Per-app volume** — every app producing sound gets its own slider
+- **Mute individually**, without touching the app itself
+- **Settings stick** — Safari stays quiet, even after a restart
+- **Shows only what is playing** — not an endless list, just the apps making sound
+- **Stays out of the way** — lives in the menu bar, no window, no Dock icon
 
-## Installation
+## Install
 
-1. Neueste Version unter [Releases](https://github.com/makogre/splitsound/releases) herunterladen
-2. DMG öffnen, **SplitSound** in den Ordner **Programme** ziehen
-3. Beim ersten Start: **Rechtsklick auf die App → „Öffnen"**, im Dialog nochmals „Öffnen"
+1. Download the latest build from [Releases](https://github.com/makogre/splitsound/releases)
+2. Open the DMG and drag **SplitSound** into **Applications**
+3. On first launch: **right-click the app → "Open"**, then "Open" again in the dialog
 
-> Der Rechtsklick ist nötig, weil die App noch nicht bei Apple notariell
-> registriert ist. macOS blockiert sie sonst. Danach startet sie normal.
+> The right-click is necessary because the app is not yet notarized with Apple,
+> so macOS blocks it otherwise. After that it launches normally.
 
-Beim ersten Regeln fragt macOS einmalig nach der Erlaubnis, Audio mitzuschneiden.
-Die braucht SplitSound, um den Ton einer App abzufangen und leiser wieder
-auszugeben — anders lässt sich die Lautstärke fremder Apps unter macOS nicht
-verändern.
+The first time you adjust a volume, macOS asks once for permission to record
+audio. SplitSound needs it to intercept an app's sound and play it back quieter —
+there is no other way to change another app's volume on macOS.
 
-**Voraussetzung:** macOS 14.4 oder neuer.
+**Requires macOS 14.4 or newer.**
 
-## Bedienung
+## Using it
 
-Klick auf das Schieberegler-Symbol in der Menüleiste. Jede Zeile ist eine App:
+Click the slider icon in the menu bar. Each row is one app:
 
-<img src="docs/images/zeile.png" alt="Eine Kanalzeile: Icon, Name, Prozentwert, Stumm-Schalter und Regler" width="340">
+<img src="docs/images/row.png" alt="A channel row: icon, name, percentage, mute button and slider" width="340">
 
-| Element | Wirkung |
+| Element | Effect |
 |---|---|
-| Regler | Lautstärke dieser App, 0 – 100 % |
-| Lautsprecher-Symbol | Stummschalten und wieder aufheben |
-| Ausgegraute Zeile | App ist gerade still, bleibt kurz stehen |
+| Slider | Volume for this app, 0 – 100 % |
+| Speaker icon | Mute and unmute |
+| Dimmed row | App is currently silent, sticks around briefly |
 
-Eine App auf 100 % ohne Stummschaltung wird nicht angefasst — SplitSound
-klinkt sich nur dort ein, wo wirklich etwas zu regeln ist.
+An app at 100 % and unmuted is left alone — SplitSound only inserts itself where
+there is actually something to adjust.
 
-## Gut zu wissen
+## Good to know
 
-**Safari heißt „Safari Graphics and Media".** Der Ton kommt bei Safari nicht aus
-dem Browser selbst, sondern aus einem Hilfsprozess. Alle WebKit-Browser teilen
-sich diesen Namen.
+**The first slider drag may click briefly.** That is the moment SplitSound
+inserts itself into the app's audio path.
 
-**Beim ersten Ziehen des Reglers kann es kurz knacken.** In dem Moment klinkt
-sich SplitSound in den Tonweg der App ein.
+**Command line players show up too.** Anything producing audio appears, including
+tools like `afplay` that have no icon.
 
-## Aus dem Quelltext bauen
+## Building from source
 
 ```sh
 brew install xcodegen
 xcodegen generate
-open SplitSound.xcodeproj      # dort Signing-Team setzen, dann Run
+open SplitSound.xcodeproj      # set your signing team, then Run
 ```
 
-Fertiges DMG bauen:
+Build a DMG:
 
 ```sh
 ./scripts/build-release.sh     # -> dist/SplitSound-<version>.dmg
 ```
 
-Tests:
+Run the tests:
 
 ```sh
 xcodebuild test -project SplitSound.xcodeproj -scheme SplitSound -destination 'platform=macOS'
 ```
 
-Wie das Ganze intern funktioniert, welche Fallstricke Core Audio hier bereithält
-und was noch offen ist, steht in **[docs/TECHNIK.md](docs/TECHNIK.md)**.
+How it works internally, which Core Audio pitfalls are waiting for you, and
+what is still open: see **[docs/TECHNICAL.md](docs/TECHNICAL.md)**.
 
-## Unterstützen
+## Support
 
-SplitSound ist kostenlos und quelloffen. Wenn es dir Arbeit abnimmt, freue ich
-mich über einen Kaffee: [buymeacoffee.com/makogre](https://buymeacoffee.com/makogre)
+SplitSound is free and open source. If it saves you some hassle, a coffee is
+always welcome: [buymeacoffee.com/makogre](https://buymeacoffee.com/makogre)
 
-## Lizenz
+## License
 
 [MIT](LICENSE)

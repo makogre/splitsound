@@ -3,36 +3,36 @@ import CoreAudio
 import Foundation
 import OSLog
 
-/// Regelt die Lautstaerke *einer* App, indem der Originalton stummgeschaltet
-/// und eine selbst skalierte Kopie ausgegeben wird.
+/// Controls the volume of a *single* app by muting its original output and
+/// emitting a scaled copy instead.
 ///
-/// Ablauf:
-///  1. Process Tap auf den Prozess legen, `muteBehavior = .mutedWhenTapped`.
-///     Damit ist der direkte Weg der App zum Lautsprecher tot, wir bekommen
-///     die Samples stattdessen als Eingang.
-///  2. Privates Aggregate Device bauen aus [echtes Ausgabegeraet + dieser Tap].
-///  3. Ein IOProc liest den Tap-Eingang, multipliziert mit dem Gain und
-///     schreibt das Ergebnis auf das Ausgabegeraet.
+/// How it works:
+///  1. Place a process tap on the process with `muteBehavior = .mutedWhenTapped`.
+///     That kills the app's direct path to the speakers; its samples arrive
+///     on our input instead.
+///  2. Build a private aggregate device from [real output device + this tap].
+///  3. An IOProc reads the tap input, multiplies by the gain, and writes the
+///     result to the output device.
 ///
-/// Bewusste Entscheidung: ein Aggregate Device *pro App* statt eines
-/// gemeinsamen. Bei einem gemeinsamen Geraet muesste man die Eingangspuffer
-/// den Taps zuordnen, was von der Reihenfolge der Sub-Devices abhaengt und
-/// leicht still danebengeht. Pro App gibt es genau einen Eingang — eindeutig.
+/// Deliberate choice: one aggregate device *per app* rather than a shared one.
+/// With a shared device you would have to map input buffers to taps, which
+/// depends on sub-device ordering and fails silently when it is wrong. Per app
+/// there is exactly one input — unambiguous.
 final class ProcessTap {
     let processObjectID: AudioObjectID
     private(set) var isActive = false
 
-    /// Wird vom Realtime-IOProc gelesen und vom Main Thread geschrieben.
-    /// Bewusst ein roher Zeiger: im IOProc darf nicht gesperrt oder
-    /// Swift-Runtime-Code aufgerufen werden. 4-Byte-aligned Float-Zugriffe
-    /// sind auf arm64/x86_64 atomar.
+    /// Read by the realtime IOProc, written by the main thread.
+    /// Deliberately a raw pointer: the IOProc must not lock or call into the
+    /// Swift runtime. Four-byte-aligned Float accesses are atomic on
+    /// arm64/x86_64.
     private let gainStorage: UnsafeMutablePointer<Float>
 
-    /// Spitzenpegel des letzten Render-Durchlaufs, vor Anwendung des Gains.
-    /// Speist die Pegelanzeige im Mixer — und belegt beim Testen, dass der
-    /// Realtime-Callback wirklich Samples bekommt.
+    /// Peak level of the last render pass, before gain is applied. Feeds the
+    /// level meter — and proves during testing that the realtime callback is
+    /// actually receiving samples.
     private let peakStorage: UnsafeMutablePointer<Float>
-    /// Zaehlt Render-Aufrufe, damit sichtbar ist, ob der IOProc ueberhaupt laeuft.
+    /// Counts render invocations, making it visible whether the IOProc runs at all.
     private let renderCountStorage: UnsafeMutablePointer<UInt64>
 
     private var tapID: AudioObjectID = .unknown
@@ -47,10 +47,10 @@ final class ProcessTap {
         set { gainStorage.pointee = max(0, min(newValue, 1)) }
     }
 
-    /// Spitzenpegel (0…1) des zuletzt gerenderten Blocks.
+    /// Peak level (0…1) of the most recently rendered block.
     var peakLevel: Float { peakStorage.pointee }
 
-    /// Anzahl bisheriger Render-Aufrufe.
+    /// Number of render invocations so far.
     var renderCount: UInt64 { renderCountStorage.pointee }
 
     init(processObjectID: AudioObjectID, gain: Float = 1.0) {
@@ -73,7 +73,7 @@ final class ProcessTap {
         renderCountStorage.deallocate()
     }
 
-    // MARK: - Lebenszyklus
+    // MARK: - Lifecycle
 
     func activate() throws {
         guard !isActive else { return }
@@ -84,7 +84,7 @@ final class ProcessTap {
         try startIOProc()
 
         isActive = true
-        log.info("Tap aktiv fuer Prozess \(self.processObjectID)")
+        log.info("Tap active for process \(self.processObjectID)")
     }
 
     func invalidate() {
@@ -107,19 +107,19 @@ final class ProcessTap {
         isActive = false
     }
 
-    // MARK: - Aufbau
+    // MARK: - Setup
 
     private func createTap() throws {
         let description = CATapDescription(stereoMixdownOfProcesses: [processObjectID])
         description.uuid = tapUUID
         description.name = "SplitSound Tap \(processObjectID)"
-        // Nur wir sehen den Tap; er taucht in keiner Geraeteliste auf.
+        // Only we can see the tap; it appears in no device list.
         description.isPrivate = true
-        // Der Originalton verstummt, solange wir tappen — wir liefern den Ersatz.
+        // The original audio goes silent while we tap — we supply the replacement.
         description.muteBehavior = .mutedWhenTapped
 
         try AudioHardwareCreateProcessTap(description, &tapID)
-            .check("Process Tap fuer Prozess \(processObjectID) anlegen")
+            .check("Creating process tap for process \(processObjectID)")
     }
 
     private func createAggregateDevice(outputUID: String) throws {
@@ -142,13 +142,14 @@ final class ProcessTap {
         ]
 
         try AudioHardwareCreateAggregateDevice(description as CFDictionary, &aggregateID)
-            .check("Aggregate Device fuer Prozess \(processObjectID) anlegen")
+            .check("Creating aggregate device for process \(processObjectID)")
     }
 
     private func startIOProc() throws {
         let gainPointer = gainStorage
         let peakPointer = peakStorage
         let countPointer = renderCountStorage
+
         var procID: AudioDeviceIOProcID?
         let status = AudioDeviceCreateIOProcIDWithBlock(&procID, aggregateID, nil) {
             _, inputData, _, outputData, _ in
@@ -160,23 +161,23 @@ final class ProcessTap {
                 peak: peakPointer
             )
         }
-        try status.check("IOProc anlegen")
+        try status.check("Creating IOProc")
 
         guard let procID else {
-            throw CoreAudioError(status: kAudioHardwareUnspecifiedError, operation: "IOProc war nil")
+            throw CoreAudioError(status: kAudioHardwareUnspecifiedError, operation: "IOProc was nil")
         }
         ioProcID = procID
 
-        try AudioDeviceStart(aggregateID, procID).check("Aggregate Device starten")
+        try AudioDeviceStart(aggregateID, procID).check("Starting aggregate device")
     }
 
     // MARK: - Realtime
 
-    /// Laeuft auf dem Audio-Realtime-Thread. Kein Allozieren, kein Sperren,
-    /// keine Swift-Runtime-Aufrufe — nur Zeigerarithmetik.
+    /// Runs on the audio realtime thread. No allocation, no locking, no Swift
+    /// runtime calls — pointer arithmetic only.
     ///
-    /// Nicht `private`, damit die Kanalzuordnung mit synthetischen Puffern
-    /// geprueft werden kann, ohne echte Audiohardware zu brauchen.
+    /// Not `private` so the channel mapping can be verified with synthetic
+    /// buffers, without needing real audio hardware.
     static func render(
         input: UnsafePointer<AudioBufferList>,
         output: UnsafeMutablePointer<AudioBufferList>,
@@ -195,8 +196,8 @@ final class ProcessTap {
             let outBuffer = outputList[index]
             guard let outData = outBuffer.mData else { continue }
 
-            // Kein passender Eingang: Stille schreiben, sonst rauscht alter
-            // Pufferinhalt durch.
+            // No matching input: write silence, otherwise stale buffer content
+            // leaks through as noise.
             guard index < inputList.count,
                   let inData = inputList[index].mData,
                   inputList[index].mNumberChannels > 0,
@@ -218,7 +219,7 @@ final class ProcessTap {
             let frames = min(inFrames, outFrames)
 
             if inChannels == outChannels {
-                // Regelfall (Stereo auf Stereo): flach durchkopieren.
+                // Common case (stereo to stereo): straight copy.
                 for sample in 0..<(frames * inChannels) {
                     let value = source[sample]
                     let magnitude = value < 0 ? -value : value
@@ -226,8 +227,8 @@ final class ProcessTap {
                     destination[sample] = value * gain
                 }
             } else if outChannels < inChannels {
-                // Ausgabegeraet hat weniger Kanaele (z. B. mono): mischen,
-                // statt die ueberzaehligen Kanaele wegzuwerfen.
+                // Output device has fewer channels (mono, for instance): mix
+                // down rather than discarding the surplus channels.
                 let scale = gain / Float(inChannels)
                 for frame in 0..<frames {
                     var sum: Float = 0
@@ -243,8 +244,8 @@ final class ProcessTap {
                     }
                 }
             } else {
-                // Mehr Ausgabekanaele als Eingangskanaele: reihum wiederholen,
-                // damit z. B. Mono-Quellen auf allen Kanaelen zu hoeren sind.
+                // More output than input channels: repeat cyclically, so a mono
+                // source is audible on every channel.
                 for frame in 0..<frames {
                     for channel in 0..<outChannels {
                         let value = source[frame * inChannels + (channel % inChannels)]
@@ -255,8 +256,8 @@ final class ProcessTap {
                 }
             }
 
-            // Liefert der Eingang weniger Frames als der Ausgang fasst,
-            // bleibt der Rest sonst mit altem Inhalt stehen.
+            // If the input supplies fewer frames than the output holds, the
+            // remainder would otherwise keep its stale contents.
             let writtenBytes = frames * outChannels * MemoryLayout<Float>.size
             if Int(outBuffer.mDataByteSize) > writtenBytes {
                 memset(outData + writtenBytes, 0, Int(outBuffer.mDataByteSize) - writtenBytes)
@@ -264,7 +265,7 @@ final class ProcessTap {
         }
     }
 
-    // MARK: - Hilfen
+    // MARK: - Helpers
 
     static func defaultOutputDeviceUID() throws -> String {
         let deviceID: AudioObjectID = try AudioObjectID.system

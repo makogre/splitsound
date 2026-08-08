@@ -23,8 +23,9 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Sources/Resources/SplitSound.entitlements
         CODE_SIGN_STYLE: Automatic
         ENABLE_HARDENED_RUNTIME: YES
-        # Swift 5 language mode: Core Audio IOProc-Callbacks sind C-Funktionszeiger
-        # ohne Sendable-Annotationen; strict concurrency waere hier reines Rauschen.
+        # Swift 5 language mode: Core Audio IOProc callbacks are C function
+        # pointers without Sendable annotations; strict concurrency would be
+        # pure noise here.
         SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
         DEAD_CODE_STRIPPING: YES

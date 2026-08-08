@@ -3,15 +3,15 @@ import Foundation
 import Observation
 import OSLog
 
-/// Verfolgt, welche Apps gerade Audio ausgeben, und haelt die Mixer-Liste aktuell.
+/// Tracks which apps are currently producing audio and keeps the mixer list current.
 ///
-/// Core Audio meldet Aenderungen per Property-Listener, wir pollen also nicht.
-/// Einzige Ausnahme ist der Nachlauf-Timer: er laesst Zeilen nach dem Verstummen
-/// noch kurz stehen, damit der Slider beim Pausieren eines Videos nicht wegspringt.
+/// Core Audio reports changes through property listeners, so there is no polling.
+/// The one exception is the grace timer: it keeps rows visible for a moment after
+/// an app falls silent, so the slider does not disappear when a video is paused.
 @Observable
 @MainActor
 final class AudioProcessMonitor {
-    /// Wie lange eine verstummte App noch im Mixer sichtbar bleibt.
+    /// How long a silenced app stays visible in the mixer.
     static let gracePeriod: TimeInterval = 30
 
     private(set) var processes: [AudioProcess] = []
@@ -31,7 +31,7 @@ final class AudioProcessMonitor {
                 MainActor.assumeIsolated { self?.refresh() }
             }
         } catch {
-            log.error("Prozessliste konnte nicht beobachtet werden: \(error.localizedDescription)")
+            log.error("Could not observe process list: \(error.localizedDescription)")
             lastError = error.localizedDescription
         }
         refresh()
@@ -44,16 +44,16 @@ final class AudioProcessMonitor {
         graceTimer = nil
     }
 
-    // MARK: - Aktualisierung
+    // MARK: - Refresh
 
-    /// Liest die komplette Prozessliste neu und baut die sichtbare Mixer-Liste auf.
+    /// Re-reads the full process list and rebuilds the visible mixer list.
     private func refresh() {
         let objectIDs: [AudioObjectID]
         do {
             objectIDs = try AudioObjectID.system.readArray(kAudioHardwarePropertyProcessObjectList)
             lastError = nil
         } catch {
-            log.error("Prozessliste nicht lesbar: \(error.localizedDescription)")
+            log.error("Process list unreadable: \(error.localizedDescription)")
             lastError = error.localizedDescription
             return
         }
@@ -73,7 +73,7 @@ final class AudioProcessMonitor {
             discovered.append(process)
         }
 
-        // Listener und Zeitstempel verschwundener Prozesse aufraeumen.
+        // Drop listeners and timestamps for processes that are gone.
         let liveIDs = Set(objectIDs)
         processObservations = processObservations.filter { liveIDs.contains($0.key) }
         lastActiveByProcess = lastActiveByProcess.filter { liveIDs.contains($0.key) }
@@ -81,12 +81,12 @@ final class AudioProcessMonitor {
         publish(discovered, now: now)
     }
 
-    /// Filtert auf hoerbare bzw. kuerzlich hoerbare Apps und sortiert stabil.
+    /// Filters down to audible (or recently audible) apps and sorts them stably.
     private func publish(_ candidates: [AudioProcess], now: Date) {
         let visible = candidates
             .filter { $0.isPlayingAudio || now.timeIntervalSince($0.lastActive) < Self.gracePeriod }
             .sorted {
-                // Aktive zuerst, danach alphabetisch — so springt nichts grundlos umher.
+                // Active first, then alphabetical — so nothing jumps around without reason.
                 if $0.isPlayingAudio != $1.isPlayingAudio { return $0.isPlayingAudio }
                 return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
             }
@@ -97,9 +97,9 @@ final class AudioProcessMonitor {
         scheduleGraceExpiryIfNeeded(now: now)
     }
 
-    /// Ein Prozess ist verstummt: der Nachlauf laeuft ab, ohne dass Core Audio
-    /// uns nochmal aufweckt. Also einmalig nachfassen, wenn der aelteste
-    /// Nachlauf-Eintrag faellig wird.
+    /// A process has fallen silent: its grace period will expire without Core
+    /// Audio waking us again. So check back once, when the earliest pending
+    /// grace period runs out.
     private func scheduleGraceExpiryIfNeeded(now: Date) {
         graceTimer?.invalidate()
         graceTimer = nil
@@ -116,7 +116,7 @@ final class AudioProcessMonitor {
         }
     }
 
-    /// Sorgt dafuer, dass wir sofort erfahren, wenn eine App zu spielen beginnt oder aufhoert.
+    /// Ensures we hear about it immediately when an app starts or stops playing.
     private func observeIsRunningOutput(of objectID: AudioObjectID) {
         guard processObservations[objectID] == nil else { return }
         do {
@@ -125,7 +125,7 @@ final class AudioProcessMonitor {
                 MainActor.assumeIsolated { self?.refresh() }
             }
         } catch {
-            log.debug("Kein Listener fuer Prozess \(objectID): \(error.localizedDescription)")
+            log.debug("No listener for process \(objectID): \(error.localizedDescription)")
         }
     }
 }

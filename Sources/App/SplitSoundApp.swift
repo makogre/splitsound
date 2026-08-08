@@ -13,7 +13,7 @@ struct SplitSoundApp: App {
                     monitor.start()
                     engine.start()
                 }
-                // Taps nachziehen, sobald sich Prozessliste oder Einstellungen aendern.
+                // Keep taps in sync whenever the process list or settings change.
                 .onChange(of: monitor.processes) { syncEngine() }
                 .onChange(of: volumes.revision) { syncEngine() }
         } label: {

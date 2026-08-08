@@ -1,11 +1,11 @@
 import Foundation
 import Observation
 
-/// Merkt sich Lautstaerke und Mute pro App — ueber App-Neustarts hinweg.
+/// Remembers volume and mute state per app, across restarts.
 ///
-/// Schluessel ist die Bundle-ID, damit die Einstellung fuer Safari auch nach
-/// einem Neustart von Safari wieder greift. Prozesse ohne Bundle-ID fallen auf
-/// die PID zurueck und sind damit bewusst fluechtig.
+/// Keyed by bundle ID so a setting for Safari still applies after Safari
+/// restarts. Processes without a bundle ID fall back to their PID and are
+/// therefore deliberately transient.
 @Observable
 @MainActor
 final class AppVolumeStore {
@@ -13,15 +13,15 @@ final class AppVolumeStore {
         var gain: Float = 1.0
         var isMuted: Bool = false
 
-        /// Der Faktor, der tatsaechlich auf die Samples angewendet wird.
+        /// The factor actually applied to the samples.
         var effectiveGain: Float { isMuted ? 0 : gain }
     }
 
     private static let defaultsKey = "AppVolumeSettings"
     private static let persistableKeyPrefix = "bundle:"
 
-    /// Zaehlt jede Aenderung. Die App haengt daran, um die Taps nachzuziehen —
-    /// ein Dictionary ist als `onChange`-Quelle unhandlich.
+    /// Counts every change. The app watches this to keep the taps in sync —
+    /// a dictionary is awkward as an `onChange` source.
     private(set) var revision = 0
 
     private var settings: [String: Settings] = [:]
@@ -51,7 +51,7 @@ final class AppVolumeStore {
 
     func gain(for process: AudioProcess) -> Float { self[process].effectiveGain }
 
-    // MARK: - Persistenz
+    // MARK: - Persistence
 
     private func load() {
         guard let data = defaults.data(forKey: Self.defaultsKey),
@@ -61,8 +61,8 @@ final class AppVolumeStore {
     }
 
     private func save() {
-        // PID-basierte Eintraege sind nach einem Neustart wertlos und wuerden
-        // die Datei nur zumuellen.
+        // PID-based entries are worthless after a restart and would only
+        // clutter the file.
         let persistable = settings.filter { $0.key.hasPrefix(Self.persistableKeyPrefix) }
         guard let data = try? JSONEncoder().encode(persistable) else { return }
         defaults.set(data, forKey: Self.defaultsKey)

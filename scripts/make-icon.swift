@@ -1,20 +1,20 @@
 #!/usr/bin/env swift
 //
-// Erzeugt das App-Icon und legt es als Sources/Resources/AppIcon.icns ab.
+// Generates the app icon and writes it to Sources/Resources/AppIcon.icns.
 //
 //   swift scripts/make-icon.swift
 //
-// Das Icon wird gezeichnet statt als Binaerdatei eingecheckt: so laesst sich
-// die Gestaltung nachvollziehen und aendern, ohne ein Grafikprogramm zu oeffnen.
+// The icon is drawn rather than checked in as an opaque binary, so the design
+// can be understood and changed without opening a graphics program.
 
 import AppKit
 import Foundation
 
-// MARK: - Gestaltung
+// MARK: - Design
 
-/// Drei Schieberegler auf unterschiedlicher Hoehe — dasselbe Motiv wie in der
-/// Menueleiste, damit App und Symbol als zusammengehoerig erkennbar sind.
-let sliderPositions: [CGFloat] = [0.62, 0.34, 0.78]  // Knopfhoehe von oben
+/// Three sliders at different heights — the same motif as the menu bar icon,
+/// so the app and its symbol read as belonging together.
+let sliderPositions: [CGFloat] = [0.62, 0.34, 0.78]  // knob height from the top
 
 let backgroundTop = NSColor(srgbRed: 0.36, green: 0.49, blue: 0.98, alpha: 1)
 let backgroundBottom = NSColor(srgbRed: 0.55, green: 0.36, blue: 0.96, alpha: 1)
@@ -23,10 +23,10 @@ func drawIcon(size: CGFloat, into context: CGContext) {
     context.setShouldAntialias(true)
     context.interpolationQuality = .high
 
-    // macOS-Icons sitzen nicht randfuellend, sondern auf einer eingerueckten Flaeche.
+    // macOS icons do not fill the canvas; they sit on an inset plate.
     let inset = size * 0.09
     let plate = CGRect(x: inset, y: inset, width: size - 2 * inset, height: size - 2 * inset)
-    let radius = plate.width * 0.2237  // entspricht der macOS-Squircle-Rundung
+    let radius = plate.width * 0.2237  // matches the macOS squircle rounding
 
     let platePath = CGPath(roundedRect: plate, cornerWidth: radius, cornerHeight: radius,
                            transform: nil)
@@ -46,18 +46,18 @@ func drawIcon(size: CGFloat, into context: CGContext) {
     }
     context.restoreGState()
 
-    // --- Schieberegler ---
+    // --- Sliders ---
     let area = plate.insetBy(dx: plate.width * 0.24, dy: plate.height * 0.20)
     let trackWidth = plate.width * 0.070
     let knobRadius = trackWidth * 1.05
     let count = sliderPositions.count
 
     for (index, position) in sliderPositions.enumerated() {
-        // Gleichmaessig ueber die Breite verteilen.
+        // Distribute evenly across the width.
         let fraction = (CGFloat(index) + 0.5) / CGFloat(count)
         let centerX = area.minX + area.width * fraction
 
-        // Bahn
+        // Track
         let track = CGRect(x: centerX - trackWidth / 2, y: area.minY,
                            width: trackWidth, height: area.height)
         context.setFillColor(NSColor(white: 1, alpha: 0.34).cgColor)
@@ -65,7 +65,7 @@ func drawIcon(size: CGFloat, into context: CGContext) {
                                cornerHeight: trackWidth / 2, transform: nil))
         context.fillPath()
 
-        // Gefuellter Teil unterhalb des Knopfes
+        // Filled portion below the knob
         let knobY = area.maxY - area.height * position
         let filled = CGRect(x: track.minX, y: area.minY,
                             width: trackWidth, height: knobY - area.minY)
@@ -74,7 +74,7 @@ func drawIcon(size: CGFloat, into context: CGContext) {
                                cornerHeight: trackWidth / 2, transform: nil))
         context.fillPath()
 
-        // Knopf
+        // Knob
         let knob = CGRect(x: centerX - knobRadius, y: knobY - knobRadius,
                           width: knobRadius * 2, height: knobRadius * 2)
         context.setShadow(offset: CGSize(width: 0, height: -size * 0.006),
@@ -86,7 +86,7 @@ func drawIcon(size: CGFloat, into context: CGContext) {
     }
 }
 
-// MARK: - Ausgabe
+// MARK: - Output
 
 func renderPNG(size: Int) -> Data? {
     guard let rep = NSBitmapImageRep(
@@ -109,7 +109,7 @@ let iconset = projectRoot.appendingPathComponent("build/AppIcon.iconset")
 try? FileManager.default.removeItem(at: iconset)
 try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
 
-// Die Groessen, die macOS in einem .icns erwartet.
+// The sizes macOS expects inside an .icns.
 let variants: [(name: String, pixels: Int)] = [
     ("icon_16x16", 16), ("icon_16x16@2x", 32),
     ("icon_32x32", 32), ("icon_32x32@2x", 64),
@@ -120,7 +120,7 @@ let variants: [(name: String, pixels: Int)] = [
 
 for variant in variants {
     guard let data = renderPNG(size: variant.pixels) else {
-        FileHandle.standardError.write("Konnte \(variant.name) nicht zeichnen\n".data(using: .utf8)!)
+        FileHandle.standardError.write("Could not draw \(variant.name)\n".data(using: .utf8)!)
         exit(1)
     }
     try data.write(to: iconset.appendingPathComponent("\(variant.name).png"))
@@ -134,7 +134,7 @@ try iconutil.run()
 iconutil.waitUntilExit()
 
 guard iconutil.terminationStatus == 0 else {
-    FileHandle.standardError.write("iconutil fehlgeschlagen\n".data(using: .utf8)!)
+    FileHandle.standardError.write("iconutil failed\n".data(using: .utf8)!)
     exit(1)
 }
-print("Geschrieben: \(destination.path)")
+print("Wrote: \(destination.path)")

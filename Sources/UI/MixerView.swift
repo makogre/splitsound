@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Der Mixer selbst: eine Zeile pro App, die Ton ausgibt.
+/// The mixer itself: one row per app that is producing audio.
 struct MixerView: View {
     let monitor: AudioProcessMonitor
     let volumes: AppVolumeStore
@@ -24,7 +24,7 @@ struct MixerView: View {
                     }
                     .padding(.vertical, 6)
                 }
-                // Genug fuer ~6 Zeilen, danach scrollt es.
+                // Roughly six rows; beyond that it scrolls.
                 .frame(maxHeight: 320)
             }
 
@@ -55,7 +55,7 @@ struct MixerView: View {
             Image(systemName: "speaker.slash")
                 .font(.title2)
                 .foregroundStyle(.secondary)
-            Text("Gerade gibt keine App Ton aus.")
+            Text("No app is playing audio right now.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -65,7 +65,7 @@ struct MixerView: View {
 
     private var footer: some View {
         HStack {
-            Button("Beenden") { NSApp.terminate(nil) }
+            Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
             Spacer()
@@ -76,8 +76,8 @@ struct MixerView: View {
         .padding(.vertical, 8)
     }
 
-    /// Hinweis auf die Kaffeekasse. Bewusst zurueckhaltend gehalten — er soll
-    /// auffindbar sein, ohne bei jeder Lautstaerkeaenderung im Weg zu stehen.
+    /// Link to the tip jar. Deliberately understated — it should be findable
+    /// without getting in the way every time someone adjusts a volume.
     private var donateButton: some View {
         Link(destination: Self.donateURL) {
             HStack(spacing: 4) {
@@ -87,13 +87,13 @@ struct MixerView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
-        .help("Entwicklung unterstützen — buymeacoffee.com/makogre")
+        .help("Support development — buymeacoffee.com/makogre")
     }
 
     private static let donateURL = URL(string: "https://buymeacoffee.com/makogre")!
 }
 
-/// Eine Kanalzeile: Icon, Name, Mute-Button, Slider.
+/// A single channel row: icon, name, mute button, slider.
 private struct AppChannelRow: View {
     let process: AudioProcess
     let volumes: AppVolumeStore
@@ -130,7 +130,7 @@ private struct AppChannelRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        // Verstummte Apps bleiben kurz stehen, sollen aber optisch zuruecktreten.
+        // Silent apps linger for a moment but should recede visually.
         .opacity(process.isPlayingAudio ? 1 : 0.55)
     }
 
@@ -156,6 +156,6 @@ private struct AppChannelRow: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(settings.wrappedValue.isMuted ? Color.accentColor : .secondary)
-        .help(settings.wrappedValue.isMuted ? "Stummschaltung aufheben" : "Stummschalten")
+        .help(settings.wrappedValue.isMuted ? "Unmute" : "Mute")
     }
 }

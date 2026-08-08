@@ -1,19 +1,19 @@
 import CoreAudio
 import Foundation
 
-/// Fehler aus der Core-Audio-C-API, angereichert um den lesbaren FourCC-Code.
+/// An error from the Core Audio C API, carrying the readable four-character code.
 struct CoreAudioError: LocalizedError {
     let status: OSStatus
     let operation: String
 
     var errorDescription: String? {
-        "\(operation) fehlgeschlagen: \(status.fourCharCode) (\(status))"
+        "\(operation) failed: \(status.fourCharCode) (\(status))"
     }
 }
 
 extension OSStatus {
-    /// Core Audio kodiert Fehler meist als FourCC ('!obj', 'nope', …).
-    /// Nicht druckbare Codes werden als Zahl dargestellt.
+    /// Core Audio usually encodes errors as four-character codes ('!obj', 'nope', …).
+    /// Non-printable codes are rendered as a number.
     var fourCharCode: String {
         let bytes = [
             UInt8((self >> 24) & 0xFF),
@@ -25,14 +25,14 @@ extension OSStatus {
         return "'" + String(bytes: bytes, encoding: .ascii)! + "'"
     }
 
-    /// Wirft, falls der Status kein Erfolg ist.
+    /// Throws unless the status indicates success.
     func check(_ operation: String) throws {
         guard self == noErr else { throw CoreAudioError(status: self, operation: operation) }
     }
 }
 
 extension AudioObjectPropertyAddress {
-    /// Kurzform fuer den mit Abstand haeufigsten Fall: global scope, main element.
+    /// Shorthand for the overwhelmingly common case: global scope, main element.
     static func global(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
         AudioObjectPropertyAddress(
             mSelector: selector,
@@ -48,28 +48,28 @@ extension AudioObjectID {
 
     var isValid: Bool { self != .unknown }
 
-    // MARK: - Lesen
+    // MARK: - Reading
 
-    /// Liest eine Property fester Groesse (Int32, UInt32, Bool32, Structs …).
+    /// Reads a fixed-size property (Int32, UInt32, Bool32, structs, …).
     func read<T>(_ selector: AudioObjectPropertySelector, as type: T.Type = T.self) throws -> T {
         var address = AudioObjectPropertyAddress.global(selector)
         var size = UInt32(MemoryLayout<T>.size)
 
         let value = try withUnsafeTemporaryAllocation(of: T.self, capacity: 1) { buffer -> T in
             let status = AudioObjectGetPropertyData(self, &address, 0, nil, &size, buffer.baseAddress!)
-            try status.check("Lesen von \(selector.fourCharCode) auf Objekt \(self)")
+            try status.check("Reading \(selector.fourCharCode) on object \(self)")
             return buffer.baseAddress!.pointee
         }
         return value
     }
 
-    /// Liest eine Property variabler Laenge als Array (z. B. Objektlisten).
+    /// Reads a variable-length property as an array (object lists, for example).
     func readArray<T>(_ selector: AudioObjectPropertySelector, of type: T.Type = T.self) throws -> [T] {
         var address = AudioObjectPropertyAddress.global(selector)
         var byteSize: UInt32 = 0
 
         try AudioObjectGetPropertyDataSize(self, &address, 0, nil, &byteSize)
-            .check("Groesse von \(selector.fourCharCode) auf Objekt \(self)")
+            .check("Sizing \(selector.fourCharCode) on object \(self)")
 
         let capacity = Int(byteSize) / MemoryLayout<T>.stride
         guard capacity > 0 else { return [] }
@@ -78,14 +78,14 @@ extension AudioObjectID {
         defer { buffer.deallocate() }
 
         try AudioObjectGetPropertyData(self, &address, 0, nil, &byteSize, buffer.baseAddress!)
-            .check("Lesen von \(selector.fourCharCode) auf Objekt \(self)")
+            .check("Reading \(selector.fourCharCode) on object \(self)")
 
-        // byteSize wird vom Aufruf auf die tatsaechlich geschriebene Menge korrigiert.
+        // The call corrects byteSize to the amount actually written.
         return Array(buffer.prefix(Int(byteSize) / MemoryLayout<T>.stride))
     }
 
-    /// Liest eine CFString-Property. Core Audio uebergibt die Referenz mit +1,
-    /// daher `takeRetainedValue`.
+    /// Reads a CFString property. Core Audio hands the reference over at +1,
+    /// hence `takeRetainedValue` semantics.
     func readString(_ selector: AudioObjectPropertySelector) throws -> String {
         var address = AudioObjectPropertyAddress.global(selector)
         var size = UInt32(MemoryLayout<CFString?>.size)
@@ -93,24 +93,24 @@ extension AudioObjectID {
 
         try withUnsafeMutablePointer(to: &value) { pointer in
             try AudioObjectGetPropertyData(self, &address, 0, nil, &size, pointer)
-                .check("Lesen von \(selector.fourCharCode) auf Objekt \(self)")
+                .check("Reading \(selector.fourCharCode) on object \(self)")
         }
         guard let value else {
             throw CoreAudioError(status: kAudioHardwareUnknownPropertyError,
-                                 operation: "String \(selector.fourCharCode) war leer")
+                                 operation: "String \(selector.fourCharCode) was empty")
         }
         return value as String
     }
 
-    /// Existiert die Property auf diesem Objekt ueberhaupt?
+    /// Does this object expose the property at all?
     func hasProperty(_ selector: AudioObjectPropertySelector) -> Bool {
         var address = AudioObjectPropertyAddress.global(selector)
         return AudioObjectHasProperty(self, &address)
     }
 
-    // MARK: - Beobachten
+    // MARK: - Observing
 
-    /// Registriert einen Listener und liefert ein Handle, das beim Deinit deregistriert.
+    /// Registers a listener and returns a handle that deregisters on deinit.
     func observe(
         _ selector: AudioObjectPropertySelector,
         queue: DispatchQueue = .main,
@@ -120,7 +120,7 @@ extension AudioObjectID {
     }
 }
 
-/// Haelt eine Core-Audio-Property-Listener-Registrierung am Leben und raeumt sie auf.
+/// Keeps a Core Audio property listener registration alive and tears it down.
 final class PropertyObservation {
     private let objectID: AudioObjectID
     private var address: AudioObjectPropertyAddress
@@ -139,7 +139,7 @@ final class PropertyObservation {
         self.block = { _, _ in handler() }
 
         try AudioObjectAddPropertyListenerBlock(objectID, &address, queue, block)
-            .check("Listener fuer \(selector.fourCharCode) registrieren")
+            .check("Registering listener for \(selector.fourCharCode)")
     }
 
     deinit {

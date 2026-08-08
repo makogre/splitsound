@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>de</string>
+	<string>en</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,15 +23,15 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>14.4</string>
 
-	<!-- Reine Menu-Bar-App: kein Dock-Icon, kein Hauptfenster. -->
+	<!-- Menu bar app only: no Dock icon, no main window. -->
 	<key>LSUIElement</key>
 	<true/>
 
-	<!-- Core Audio Process Taps laufen ueber die Audio-Capture-TCC-Berechtigung.
-	     Ohne diesen Key beendet das System die App beim ersten Tap-Versuch. -->
+	<!-- Core Audio process taps go through the audio-capture TCC permission.
+	     Without this key the system terminates the app on its first tap attempt. -->
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>SplitSound greift die Audioausgabe einzelner Apps ab, um deren Lautstärke separat regeln zu können.</string>
+	<string>SplitSound taps the audio output of individual apps so their volume can be adjusted separately.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>SplitSound greift die Audioausgabe einzelner Apps ab, um deren Lautstärke separat regeln zu können.</string>
+	<string>SplitSound taps the audio output of individual apps so their volume can be adjusted separately.</string>
 </dict>
 </plist>

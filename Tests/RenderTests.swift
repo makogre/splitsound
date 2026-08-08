@@ -4,14 +4,13 @@ import XCTest
 
 @testable import SplitSound
 
-/// Prueft die Kanalzuordnung im Realtime-Render mit synthetischen Puffern.
+/// Verifies the channel mapping in the realtime render path using synthetic buffers.
 ///
-/// Der Weg ueber echte Audiohardware taugt dafuer nicht: dort laesst sich der
-/// Ausgang nicht zurueckmessen, und ein Mono- oder Mehrkanalgeraet ist nicht
-/// immer zur Hand.
+/// Real audio hardware is unsuitable here: the output cannot be measured back,
+/// and a mono or multichannel device is not always at hand.
 final class RenderTests: XCTestCase {
-    /// Ruft `ProcessTap.render` mit einem Eingangspuffer auf und gibt zurueck,
-    /// was im Ausgangspuffer landet.
+    /// Calls `ProcessTap.render` with one input buffer and returns whatever
+    /// ends up in the output buffer.
     private func render(
         inChannels: UInt32,
         inSamples: [Float],
@@ -23,8 +22,8 @@ final class RenderTests: XCTestCase {
         inData.initialize(from: inSamples, count: inSamples.count)
         defer { inData.deallocate() }
 
-        // Vorbelegung mit einem auffaelligen Wert: so faellt auf, wenn Bereiche
-        // ununberuehrt bleiben, die eigentlich beschrieben werden muessten.
+        // Prefilled with a conspicuous value, so untouched regions that should
+        // have been written stand out.
         let outData = UnsafeMutablePointer<Float>.allocate(capacity: outSampleCount)
         outData.initialize(repeating: -99, count: outSampleCount)
         defer { outData.deallocate() }
@@ -59,15 +58,15 @@ final class RenderTests: XCTestCase {
     }
 
     func testStereoToStereoAppliesGain() {
-        // Zwei Frames: (1, -1) und (0.5, -0.5)
+        // Two frames: (1, -1) and (0.5, -0.5)
         let result = render(inChannels: 2, inSamples: [1, -1, 0.5, -0.5],
                             outChannels: 2, outSampleCount: 4, gain: 0.5)
         XCTAssertEqual(result.output, [0.5, -0.5, 0.25, -0.25])
     }
 
     func testPeakReportsInputLevelBeforeGain() {
-        // Die Pegelanzeige soll zeigen, wie laut die App *spielt* — nicht,
-        // wie laut wir sie durchlassen.
+        // The level meter should show how loud the app *plays* — not how loud
+        // we let it through.
         let result = render(inChannels: 2, inSamples: [1, -1, 0.5, -0.5],
                             outChannels: 2, outSampleCount: 4, gain: 0.5)
         XCTAssertEqual(result.peak, 1.0, accuracy: 0.0001)
@@ -88,7 +87,7 @@ final class RenderTests: XCTestCase {
     }
 
     func testShortInputSilencesRemainderOfOutput() {
-        // Sonst bliebe der alte Pufferinhalt stehen und wuerde als Knacken hoerbar.
+        // Otherwise stale buffer content would remain and be audible as a click.
         let result = render(inChannels: 2, inSamples: [1, 1],
                             outChannels: 2, outSampleCount: 6, gain: 1.0)
         XCTAssertEqual(result.output, [1, 1, 0, 0, 0, 0])
@@ -101,8 +100,8 @@ final class RenderTests: XCTestCase {
     }
 
     func testMissingInputBufferSilencesOutput() {
-        // Kein Eingang vorhanden: der Ausgang muss geleert werden, nicht
-        // mit dem vorbelegten Muell stehen bleiben.
+        // No input present: the output must be cleared rather than left with
+        // the prefilled garbage.
         let outData = UnsafeMutablePointer<Float>.allocate(capacity: 4)
         outData.initialize(repeating: -99, count: 4)
         defer { outData.deallocate() }

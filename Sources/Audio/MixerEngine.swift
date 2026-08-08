@@ -3,19 +3,19 @@ import Foundation
 import Observation
 import OSLog
 
-/// Haelt die aktiven Taps im Einklang mit dem, was der Nutzer eingestellt hat.
+/// Keeps the active taps in sync with what the user has configured.
 ///
-/// Getappt wird nur, was tatsaechlich geregelt werden soll. Eine App auf 100 %
-/// ohne Mute laeuft unangetastet am schnellsten Weg zum Lautsprecher — ein Tap
-/// wuerde dort nur Latenz und CPU kosten.
+/// Only apps that actually need adjusting are tapped. An app at 100% and
+/// unmuted keeps its untouched, lowest-latency path to the speakers; a tap
+/// there would only cost latency and CPU.
 @Observable
 @MainActor
 final class MixerEngine {
-    /// Ein Tap plus die PID, fuer die er angelegt wurde.
+    /// A tap plus the PID it was created for.
     ///
-    /// Core Audio vergibt Prozess-Objekt-IDs wieder: dieselbe ID stand im Test
-    /// nacheinander fuer mehrere verschiedene Prozesse. Ohne die PID danebenzulegen
-    /// wuerde ein alter Tap stillschweigend auf die falsche App zeigen.
+    /// Core Audio reuses process object IDs: during testing the same ID stood
+    /// for several different processes in succession. Without the PID
+    /// alongside it, a stale tap would silently point at the wrong app.
     private struct Entry {
         let tap: ProcessTap
         let pid: pid_t
@@ -28,12 +28,13 @@ final class MixerEngine {
 
     private let log = Logger(subsystem: "com.maxgrell.SplitSound", category: "MixerEngine")
 
-    /// Was ein aktiver Tap gerade tut. Grundlage für Pegelanzeigen und Fehlersuche.
+    /// What an active tap is currently doing. Basis for level meters and
+    /// for diagnosing a silent chain.
     struct TapStatus {
-        /// Spitzenpegel (0…1) des zuletzt verarbeiteten Blocks.
+        /// Peak level (0…1) of the most recently processed block.
         let peakLevel: Float
-        /// Bisherige Durchläufe des Realtime-Callbacks. Steigt die Zahl nicht,
-        /// läuft die Audiokette nicht.
+        /// Realtime callback invocations so far. If this stops climbing,
+        /// the audio chain is not running.
         let renderCount: UInt64
     }
 
@@ -45,8 +46,8 @@ final class MixerEngine {
     }
 
     func start() {
-        // Wechselt der Nutzer die Ausgabe (Kopfhoerer rein), zeigen alle
-        // Aggregate Devices auf das falsche Geraet und muessen neu gebaut werden.
+        // When the user switches output (plugs in headphones), every aggregate
+        // device points at the wrong device and has to be rebuilt.
         outputDeviceObservation = try? AudioObjectID.system
             .observe(kAudioHardwarePropertyDefaultOutputDevice) { [weak self] in
                 MainActor.assumeIsolated { self?.rebuildAll() }
@@ -58,7 +59,7 @@ final class MixerEngine {
         entries.removeAll()
     }
 
-    /// Bringt die Taps auf den Stand von Prozessliste und Nutzereinstellungen.
+    /// Brings the taps in line with the process list and the user's settings.
     func sync(processes: [AudioProcess], volumes: AppVolumeStore) {
         var wanted = Set<AudioObjectID>()
 
@@ -69,14 +70,14 @@ final class MixerEngine {
             guard needsTap else { continue }
             wanted.insert(process.id)
 
-            // Bestehenden Tap wiederverwenden, sofern er noch zur selben App gehoert.
+            // Reuse an existing tap as long as it still belongs to the same app.
             if let entry = entries[process.id] {
                 if entry.pid == process.pid {
                     entry.tap.gain = settings.effectiveGain
                     continue
                 }
-                // Objekt-ID recycelt: alter Tap gehoert zu einem toten Prozess.
-                log.info("Objekt-ID \(process.id) neu vergeben, Tap wird ersetzt")
+                // Object ID recycled: the old tap belongs to a dead process.
+                log.info("Object ID \(process.id) was reassigned, replacing tap")
                 entry.tap.invalidate()
                 entries[process.id] = nil
             }
@@ -84,14 +85,14 @@ final class MixerEngine {
             activateTap(for: process, gain: settings.effectiveGain)
         }
 
-        // Alles, was nicht mehr geregelt werden soll, wieder freigeben.
+        // Release anything that no longer needs adjusting.
         for (objectID, entry) in entries where !wanted.contains(objectID) {
             entry.tap.invalidate()
             entries[objectID] = nil
         }
     }
 
-    // MARK: - Intern
+    // MARK: - Internals
 
     private func activateTap(for process: AudioProcess, gain: Float) {
         let tap = ProcessTap(processObjectID: process.id, gain: gain)
@@ -100,15 +101,15 @@ final class MixerEngine {
             entries[process.id] = Entry(tap: tap, pid: process.pid)
             lastError = nil
         } catch {
-            log.error("Tap fuer \(process.name) fehlgeschlagen: \(error.localizedDescription)")
+            log.error("Tap for \(process.name) failed: \(error.localizedDescription)")
             lastError = "\(process.name): \(error.localizedDescription)"
         }
     }
 
-    /// Baut alle Taps neu auf — noetig, wenn sich das Ausgabegeraet aendert.
+    /// Rebuilds every tap — required when the output device changes.
     private func rebuildAll() {
         guard !entries.isEmpty else { return }
-        log.info("Ausgabegeraet gewechselt, \(self.entries.count) Tap(s) werden neu aufgebaut")
+        log.info("Output device changed, rebuilding \(self.entries.count) tap(s)")
 
         let snapshot = entries
         entries.removeAll()
@@ -122,7 +123,7 @@ final class MixerEngine {
                 try fresh.activate()
                 entries[objectID] = Entry(tap: fresh, pid: entry.pid)
             } catch {
-                log.error("Neuaufbau fuer Objekt \(objectID) fehlgeschlagen: \(error.localizedDescription)")
+                log.error("Rebuild for object \(objectID) failed: \(error.localizedDescription)")
             }
         }
     }
