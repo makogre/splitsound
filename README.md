@@ -72,8 +72,7 @@ SIGN_IDENTITY="Developer ID Application: Name (TEAMID)" ./scripts/build-release.
 
 **Keine App Sandbox.** Process Taps sind unter Sandbox laut aktuellen
 Entwicklerberichten unzuverlässig, und ein App-Store-Vertrieb ist damit derzeit
-nicht sauber möglich — deshalb sind SoundSource, Loopback & Co. ausnahmslos
-Direktvertrieb. `SplitSound.entitlements` setzt `app-sandbox` bewusst auf
+nicht sauber möglich. `SplitSound.entitlements` setzt `app-sandbox` bewusst auf
 `false`; die Verteilung läuft notarisiert außerhalb des App Store.
 
 **`NSAudioCaptureUsageDescription` ist Pflicht.** Ohne diesen Info.plist-Key
@@ -122,10 +121,9 @@ Noch offen:
   verlassen.
 - **Latenz** wurde nicht gemessen.
 - **Notarisierung** für die Weitergabe ist nicht eingerichtet.
-- **Andere virtuelle Audiotreiber** wie [Background Music](https://github.com/kyleneideck/BackgroundMusic)
-  oder Loopback-Geräte lösen dieselbe Aufgabe auf eigenem Weg. Solange so ein
-  Treiber nicht als Standardausgabe gesetzt ist, stört er nicht — ist er es
-  doch, konkurrieren beide um denselben Signalweg.
+- **Andere virtuelle Audiotreiber** im System lösen dieselbe Aufgabe auf
+  eigenem Weg. Solange so ein Treiber nicht als Standardausgabe gesetzt ist,
+  stört er nicht — ist er es doch, konkurrieren beide um denselben Signalweg.
 - Systemtöne erscheinen als `systemsoundserverd`; ein sprechender Name wie
   „Systemtöne" wäre freundlicher.
 
