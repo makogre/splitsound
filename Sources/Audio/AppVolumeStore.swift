@@ -51,6 +51,19 @@ final class AppVolumeStore {
 
     func gain(for process: AudioProcess) -> Float { self[process].effectiveGain }
 
+    /// Whether anything has been customised at all — lets the interface
+    /// disable the reset button when there is nothing to reset.
+    var hasStoredSettings: Bool { !settings.isEmpty }
+
+    /// Forgets every stored volume. The engine picks this up through
+    /// `revision` and drops the taps that are no longer needed.
+    func resetAll() {
+        guard !settings.isEmpty else { return }
+        settings.removeAll()
+        revision &+= 1
+        save()
+    }
+
     // MARK: - Persistence
 
     private func load() {

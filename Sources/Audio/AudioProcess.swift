@@ -16,6 +16,9 @@ struct AudioProcess: Identifiable, Equatable {
     /// SF Symbol shown when there is no app icon — daemons and command line
     /// tools have none, and never will.
     let symbolName: String
+    /// A system daemon rather than something the user launched. These make
+    /// noise on the system's behalf and are hidden from the mixer by default.
+    let isSystemProcess: Bool
 
     /// Is the process producing audio right now?
     var isPlayingAudio: Bool
@@ -52,6 +55,7 @@ extension AudioProcess {
         self.name = identity.name
         self.icon = identity.icon
         self.symbolName = identity.symbolName
+        self.isSystemProcess = identity.isSystemProcess
         self.isPlayingAudio = isPlaying
         self.lastActive = isPlaying ? Date() : .distantPast
     }
@@ -70,6 +74,21 @@ enum AppIdentity {
         let icon: NSImage?
         let bundleID: String?
         var symbolName: String = "app.dashed"
+        var isSystemProcess: Bool = false
+    }
+
+    /// Directories that only ever hold system daemons. `/usr/bin` is
+    /// deliberately absent: tools a user runs themselves (afplay, ffmpeg)
+    /// live there and belong in the mixer.
+    private static let systemDirectories = [
+        "/System/",
+        "/usr/sbin/",
+        "/usr/libexec/",
+    ]
+
+    private static func isSystemPath(_ path: String?) -> Bool {
+        guard let path else { return false }
+        return systemDirectories.contains { path.hasPrefix($0) }
     }
 
     /// System daemons worth showing under a human name. They have no icon and
@@ -107,7 +126,7 @@ enum AppIdentity {
         if let executable = path.map({ ($0 as NSString).lastPathComponent }),
            let known = systemProcesses[executable] {
             return Resolved(name: known.name, icon: nil, bundleID: bundleID,
-                            symbolName: known.symbol)
+                            symbolName: known.symbol, isSystemProcess: true)
         }
 
         // 2. XPC service belonging to a host app. A heuristic — macOS exposes no
@@ -150,10 +169,11 @@ enum AppIdentity {
         // 6. Command line tools and daemons: no bundle, no icon, just a name.
         if let executable = executableName(for: pid, path: path) {
             return Resolved(name: executable, icon: nil, bundleID: bundleID,
-                            symbolName: "terminal")
+                            symbolName: "terminal", isSystemProcess: isSystemPath(path))
         }
 
-        return Resolved(name: "PID \(pid)", icon: nil, bundleID: bundleID)
+        return Resolved(name: "PID \(pid)", icon: nil, bundleID: bundleID,
+                        isSystemProcess: isSystemPath(path))
     }
 
     // MARK: - Host lookup

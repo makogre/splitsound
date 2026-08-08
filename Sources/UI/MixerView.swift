@@ -7,6 +7,8 @@ struct MixerView: View {
     let volumes: AppVolumeStore
     let engine: MixerEngine
 
+    @Environment(\.openSettings) private var openSettings
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -64,10 +66,28 @@ struct MixerView: View {
     }
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 12) {
             Button("Quit") { NSApp.terminate(nil) }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+
+            // Opens a real window rather than a second page in here: the
+            // popover closes on any click outside it, which makes trying out
+            // settings needlessly fiddly.
+            //
+            // The activation is not optional. As an LSUIElement app we are
+            // never the active application, so the settings window opens
+            // behind everything else and the button looks broken.
+            Button {
+                openSettings()
+                NSApp.activate(ignoringOtherApps: true)
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help("Settings")
+
             Spacer()
             donateButton
         }

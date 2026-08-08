@@ -40,6 +40,15 @@ final class MixerEngine {
 
     var activeTapCount: Int { entries.count }
 
+    /// Snapshot of every active tap. Read live, so callers must poll — the
+    /// underlying values live behind raw pointers for the realtime thread and
+    /// cannot notify observers.
+    var activeTapStatuses: [TapStatus] {
+        entries.values.map {
+            TapStatus(peakLevel: $0.tap.peakLevel, renderCount: $0.tap.renderCount)
+        }
+    }
+
     func status(for process: AudioProcess) -> TapStatus? {
         guard let entry = entries[process.id], entry.pid == process.pid else { return nil }
         return TapStatus(peakLevel: entry.tap.peakLevel, renderCount: entry.tap.renderCount)

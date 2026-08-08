@@ -51,6 +51,9 @@ Click the slider icon in the menu bar. Each row is one app:
 An app at 100 % and unmuted is left alone — SplitSound only inserts itself where
 there is actually something to adjust.
 
+The gear icon opens settings: launch at login, whether system processes are
+listed, how long silent apps stick around, and a reset for saved volumes.
+
 ## Good to know
 
 **The first slider drag may click briefly.** That is the moment SplitSound

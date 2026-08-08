@@ -11,8 +11,15 @@ import OSLog
 @Observable
 @MainActor
 final class AudioProcessMonitor {
-    /// How long a silenced app stays visible in the mixer.
-    static let gracePeriod: TimeInterval = 30
+    /// How long a silenced app stays visible in the mixer. Driven by settings.
+    var gracePeriod: TimeInterval = 30 {
+        didSet { if gracePeriod != oldValue { refresh() } }
+    }
+
+    /// Whether system daemons appear in the list. Driven by settings.
+    var showSystemProcesses = false {
+        didSet { if showSystemProcesses != oldValue { refresh() } }
+    }
 
     private(set) var processes: [AudioProcess] = []
     private(set) var lastError: String?
@@ -84,7 +91,8 @@ final class AudioProcessMonitor {
     /// Filters down to audible (or recently audible) apps and sorts them stably.
     private func publish(_ candidates: [AudioProcess], now: Date) {
         let visible = candidates
-            .filter { $0.isPlayingAudio || now.timeIntervalSince($0.lastActive) < Self.gracePeriod }
+            .filter { showSystemProcesses || !$0.isSystemProcess }
+            .filter { $0.isPlayingAudio || now.timeIntervalSince($0.lastActive) < gracePeriod }
             .sorted {
                 // Active first, then alphabetical — so nothing jumps around without reason.
                 if $0.isPlayingAudio != $1.isPlayingAudio { return $0.isPlayingAudio }
@@ -106,7 +114,7 @@ final class AudioProcessMonitor {
 
         let pendingExpiries = processes
             .filter { !$0.isPlayingAudio }
-            .map { $0.lastActive.addingTimeInterval(Self.gracePeriod) }
+            .map { $0.lastActive.addingTimeInterval(gracePeriod) }
 
         guard let next = pendingExpiries.min() else { return }
         let delay = max(next.timeIntervalSince(now), 0.1)

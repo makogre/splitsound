@@ -33,6 +33,8 @@ untouched, lowest-latency path; a tap there would only cost latency and CPU.
 | `Sources/Audio/MixerEngine.swift` | Keeps taps in sync with user settings |
 | `Sources/Audio/AppVolumeStore.swift` | Volume/mute per app, persisted by bundle ID |
 | `Sources/UI/MixerView.swift` | The menu bar interface |
+| `Sources/UI/SettingsView.swift` | Settings window |
+| `Sources/App/AppSettings.swift` | Preferences, login item, audio-access reporting |
 | `Tests/RenderTests.swift` | Channel mapping in the realtime path, using synthetic buffers |
 | `Tests/AppIdentityTests.swift` | The path rule attributing helper executables to their host app |
 
@@ -64,7 +66,7 @@ a free Apple ID account is enough.
 
 ## Pitfalls
 
-Six things that are not in the documentation and will save you time. All of
+Seven things that are not in the documentation and will save you time. All of
 them caused real debugging sessions during development.
 
 **A missing recording permission looks exactly like a broken tap.** Without TCC
@@ -100,6 +102,14 @@ service is working for.
 
 Both also fix persistence: without them, every WebKit browser would share a
 single setting, so turning Safari down would turn Mail down too.
+
+**The microphone permission is not the gate for process taps.**
+`AVCaptureDevice.authorizationStatus(for: .audio)` reports `notDetermined` for
+SplitSound while its taps are demonstrably delivering audio. A settings row
+built on it therefore claimed "permission not yet granted" on a perfectly
+working install. There appears to be no public API for the permission that
+actually applies, so the settings window reports observed samples instead —
+whether audio is arriving is the only signal that cannot lie.
 
 **`proc_name` fails where `proc_pidpath` succeeds.** For several system daemons
 `proc_name` returns nothing, which produced rows labelled "PID 25382". It also
@@ -140,3 +150,5 @@ Open:
   app, the interface does not display them yet.
 - **Nested-helper attribution** is covered by tests but has not been exercised
   against a running Electron app end to end.
+- **Launch at login** uses `SMAppService.mainApp`, which wants a stable code
+  signature. Whether registration survives ad-hoc builds is untested.
