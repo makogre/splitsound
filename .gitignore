@@ -13,6 +13,11 @@ xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
 
+# Design tool sources stay local; docs/images/header-source.png is the
+# exported artwork the banner is cut from.
+*.af
+*~lock~
+
 # macOS
 .DS_Store
 
