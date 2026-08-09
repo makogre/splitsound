@@ -1,6 +1,6 @@
 <div align="center">
 
-# SplitSound
+<img src="docs/images/header.png" alt="SplitSound" width="640">
 
 **A per-app volume mixer for the macOS menu bar.**
 
