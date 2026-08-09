@@ -1,13 +1,11 @@
 <div align="center">
 
-<img src="docs/images/header.png" alt="SplitSound" width="640">
-
 **A per-app volume mixer for the macOS menu bar.**
 
 Turn the video down, the music up, the meeting off — each app on its own slider.
 The thing Windows has had for years and macOS still does not ship.
 
-<img src="docs/images/mixer.png" alt="The SplitSound mixer open in the menu bar, showing two apps" width="360">
+<img src="docs/images/header.png" alt="SplitSound" width="640">
 
 </div>
 
@@ -20,6 +18,12 @@ The thing Windows has had for years and macOS still does not ship.
 - **Settings stick** — Safari stays quiet, even after a restart
 - **Shows only what is playing** — not an endless list, just the apps making sound
 - **Stays out of the way** — lives in the menu bar, no window, no Dock icon
+
+<div align="center">
+
+<img src="docs/images/mixer.png" alt="The SplitSound mixer open in the menu bar, showing two apps" width="360">
+
+</div>
 
 ## Install
 
