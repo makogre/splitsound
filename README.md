@@ -19,11 +19,7 @@ The thing Windows has had for years and macOS still does not ship.
 - **Shows only what is playing** — not an endless list, just the apps making sound
 - **Stays out of the way** — lives in the menu bar, no window, no Dock icon
 
-<div align="center">
-
 <img src="docs/images/mixer.png" alt="The SplitSound mixer open in the menu bar, showing two apps" width="360">
-
-</div>
 
 ## Install
 
